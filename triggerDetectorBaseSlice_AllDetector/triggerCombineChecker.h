@@ -1375,11 +1375,4 @@ public :
 
 
 
-    hTrkEffWOTS->GetYaxis()->SetTitle("h1 and h2 Gaussian histograms");
-    hTrkEffWOTS->GetYaxis()->SetTitleSize(0.05);
-    hTrkEffWOTS->GetYaxis()->SetLabelSize(0.04);
-    hTrkEffWOTS->GetXaxis()->SetLabelSize(0);
-
-    hTrkEffWOTS->Draw("hist");
-    hTrkEffWTS->Draw("hist same");
 
