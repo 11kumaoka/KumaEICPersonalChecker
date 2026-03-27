@@ -2,11 +2,11 @@
 #include <vector>
 #include <string>
 
-#include "checkSimInput.h"
+#include "triggerCombineChecker.h"
 #include "SimTrackerHitKuma.h"
 
 // Function to load input hits from a file
-std::vector<SimTrackerHitKuma> checkSimInput::LoadInputHits() {
+std::vector<SimTrackerHitKuma> triggerCombineChecker::LoadInputHits() {
 
     std::vector<SimTrackerHitKuma> hits;
 
@@ -16,7 +16,7 @@ std::vector<SimTrackerHitKuma> checkSimInput::LoadInputHits() {
         B0TrackerHits.loadHits(
             B0TrackerHits_,
             B0TrackerHits_cellID[iHit],
-            B0TrackerHits_eDep[iHit],/*  */
+            B0TrackerHits_eDep[iHit],
             B0TrackerHits_time[iHit],
             B0TrackerHits_pathLength[iHit],
             B0TrackerHits_quality[iHit],

@@ -14,8 +14,8 @@
 // Additionally, you need to modify Algorithm.cc and compile.C
 // KumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKuma 
 
-#ifndef checkSimInput_h
-#define checkSimInput_h
+#ifndef triggerCombineChecker_h
+#define triggerCombineChecker_h
 
 // Header file for the classes stored in the TTree if any.
 #include <vector>
@@ -33,7 +33,6 @@
 #include <TH2.h>
 #include <TH3.h>
 #include <TF1.h>
-#include <TProfile.h>
 #include <TProfile2D.h>
 #include <TPolyLine3D.h>
 
@@ -41,7 +40,7 @@
 
 
 
-class checkSimInput {
+class triggerCombineChecker {
 public :
    TTree          *fChain;   //!pointer to the analyzed TTree or TChain
    Int_t           fCurrent; //!current Tree number in a TChain
@@ -57,8 +56,8 @@ public :
    // TBranch        *b_x;   //! example x
 
 
-   checkSimInput(TTree *tree=0, std::string iFileName="", std::string oFileName="");
-   virtual ~checkSimInput();
+   triggerCombineChecker(TTree *tree=0, std::string iFileName="", std::string oFileName="");
+   virtual ~triggerCombineChecker();
    virtual Int_t    Cut(Long64_t entry);
    virtual Int_t    GetEntry(Long64_t entry);
    virtual Long64_t LoadTree(Long64_t entry);
@@ -1376,283 +1375,103 @@ public :
    std::vector<Int_t> m_vTargetEvents;
    Int_t m_pubEvNum = 0;
 
-   Int_t largestNumOfHits = 0;
-   Int_t largestNumOfHitsEventId = 0;
-   Int_t smallestNumOfHits = 9999;
-   Int_t smallestNumOfHitsEventId = 0;
-
-   Double_t m_timeFrame = 2000.0; // ns
-   Double_t m_timeSlice = 20.0; // ns
+   // TString m_simTrackHitNames[17] = \
+   // {
+   //    "B0TrackerHits",       "BackwardMPGDEndcapHits", "DIRCBarHits",\
+   //    "DRICHHits",           "ForwardMPGDEndcapHits",  "ForwardOffMTrackerHits",\
+   //    "ForwardRomanPotHits", "LumiSpecTrackerHits",    "MPGDBarrelHits",\
+   //    "OuterMPGDBarrelHits", "RICHEndcapNHits",        "SiBarrelHits",\
+   //    "TOFBarrelHits",       "TOFEndcapHits",          "TaggerTrackerHits",\
+   //    "TrackerEndcapHits",   "VertexBarrelHits"
+   // };
 
    TString m_simTrackHitNames[17] = \
    {
-      "B0TrackerHits",       "BackwardMPGDEndcapHits", "DIRCBarHits",\
-      "DRICHHits",           "ForwardMPGDEndcapHits",  "ForwardOffMTrackerHits",\
-      "ForwardRomanPotHits", "LumiSpecTrackerHits",    "MPGDBarrelHits",\
-      "OuterMPGDBarrelHits", "RICHEndcapNHits",        "SiBarrelHits",\
-      "TOFBarrelHits",       "TOFEndcapHits",          "TaggerTrackerHits",\
-      "TrackerEndcapHits",   "VertexBarrelHits"
+      "TOFBarrelRecHits", "TOFEndcapRecHits",
+      "MPGDBarrelRecHits", "OuterMPGDBarrelRecHits",
+      "BackwardMPGDEndcapRecHits", "ForwardMPGDEndcapRecHits",
+      "SiBarrelVertexRecHits", "SiBarrelTrackerRecHits",
+      "SiEndcapTrackerRecHits", "TaggerTrackerRecHits",
+      "B0TrackerRecHits", "DIRCBarRecHits",
+      "DRICHRecHits", "ForwardOffMTrackerRecHits",
+      "ForwardRomanPotRecHits", "LumiSpecTrackerRecHits",
+      "RICHEndcapNRecHits"
    };
 
-   TString m_TrigDetHitNames[9] = \
-   {
-      "MPGD_IBarrel", "MPGD_OBarrel", "MPGD_Back", "MPGD_Front", "TOFBarrel",\
-      "TOFEndcap", "VertexBarrel", "SiBarrel", "SiEndcap"
-   };
 
    std::vector<SimTrackerHitKuma > m_SimTrackerHitsKuma; // a "kuma example" of a member valuable
    // black, blue, red, green, violet, orange, light blue, light green, dark violet, brown, very light blue, 
    // yellow green, week red, dark blue, week green, dark cyan, dark orange, 
    Int_t m_myHistColors[18] = {4, 600, 632, 419, 880, 807, 867, 909, 814, 874, 635, 870, 824, 625, 602, 417, 434, 802}; // colors for histograms
 
-   // "BackwardMPGDEndcapHits - TrackerEndcapHits", "TOFBarrelHits - SiBarrelHits", "ForwardMPGDEndcapHits - TrackerEndcapHits"
-   std::vector<std::vector<Int_t> > m_TriggerSets = {{1, 15}, {11, 12}, {5, 15}};
-
+   bool m_bTrigger = false;
 
    // histograms as output
-   TH1D* m_hEventNumberForEachDetector; // event number
-   TH1D* m_hEventNumberRatioForEachDetector; // event number
-   TH2D* m_hDetHitsCombination; // each subdetector hits combination
-   TH2D* m_hDetHitsEffCombination; // each subdetector hits combination
-   TH2D* m_hRelativeHitTimeForVtxBarrel; // relative hit time for vertex barrel
-   TH2D* m_hRelativeHitTimeForVtxBarrelWideRange; // relative hit time for vertex barrel
+   TH2D* m_hEventDisplayZR_Det;
+   TH2D* m_hEventDisplayZR_Det_TF;
 
-   TH2D* m_hRVsHitTimeInclusive; // include all detector hit time vs. hit position
-   TH2D* m_hZVsHitTimeInclusive; // include all detector hit time vs. hit position
-
-   TH2D* m_hMCPGeneStatusVsHitTime; // include all detector hit time vs. hit position
-
-   TProfile2D* m_hXYVsHitTime_DIRCBar; // include all detector hit time vs. hit position
-
-
-   TH1D* m_hMinTimeHit[17]; // minimum time of hits in each subdetector
-   TH1D* m_hTimeDispersionOfAnEvent[17]; // despersoin of hits in each subdetector
-   TH2D* m_hRVsHitTime[17]; // hit time vs. hit position
-   TH2D* m_hHitTimeVsDepE[17]; // hit energy deposit vs. hit position
-   TH1D* m_hMinusMinTimeDist[17]; // hit time vs. hit position
-   TH1D* m_hMinusMinTimeDistWideRange[17]; // hit time vs. hit position
-
-   TH1D* m_hCalibratedTimeHit[17]; // calibrated time of hits in each subdetector
-   TH1D* m_hCalibratedTimeWindow90Percent; // calibrated time window 90% of hits in each subdetector
-   TH1D* m_hNumOfHitsInTimeWindow[17];
-
-   TH1D* m_hEnergyDist[17]; // despersoin of hits in each subdetector
-   TH1D* m_hEnergyDispersionOfAnEvent[17]; // despersoin of hits in each subdetector
-
-   TH2D* m_hHitMinTimeDetComp; // minimum time of hits in each subdetector compared to the first hit in the event
-   TH2D* m_hTimeDispersionDetComp; // despersoin of hits in each subdetector compared to the first hit in the event
-
-   TH3D* m_hDetectorHitsPosiZXY[17]; // position of hits in each subdetector
-   TH2D* m_hDetectorHitsPosiZR[17]; // position of hits in each subdetector
-   TH2D* m_hDetectorHitsPosiXY[17]; // position of hits in each subdetector
-
-
-   TH3D* m_hEventDisplayZXY_Det; // position of hits in each subdetector
-   TH2D* m_hEventDisplayZR_Det; // position of hits in each subdetector
-   // TH3F* m_hEventDisplay_SimP; // position of hits in each subdetector
-   TPolyLine3D *m_lEventDisplay_SimP = new TPolyLine3D(2);
-
-   TH1D* m_hNumOfHits_All_TF_AllDet;
-   TH1D* m_hNumOfHits_All_TF_VTX;
-   TH1D* m_hNumOfHits_All_TF_SiBarrel;
-   TH1D* m_hNumOfHits_All_TF_MPGDBarrel;
-   TH1D* m_hNumOfHits_All_TF_TOFBarrel;
-   TH1D* m_hNumOfHits_All_TF_SiEndCapF;
-   TH1D* m_hNumOfHits_All_TF_MPGDEndCapF;
-   TH1D* m_hNumOfHits_All_TF_TOFEndCapF;
-   TH1D* m_hNumOfHits_All_TF_SiEndCapB;
-   TH1D* m_hNumOfHits_All_TF_MPGDEndCapB;
-   TH1D* m_hNumOfHits_All_TF_TOFEndCapB;
-
-   TH1D* m_hNumOfHits_Phys_TF_AllDet;
-   TH1D* m_hNumOfHits_Phys_TF_VTX;
-   TH1D* m_hNumOfHits_Phys_TF_SiBarrel;
-   TH1D* m_hNumOfHits_Phys_TF_MPGDBarrel;
-   TH1D* m_hNumOfHits_Phys_TF_TOFBarrel;
-   TH1D* m_hNumOfHits_Phys_TF_SiEndCapF;
-   TH1D* m_hNumOfHits_Phys_TF_MPGDEndCapF;
-   TH1D* m_hNumOfHits_Phys_TF_TOFEndCapF;
-   TH1D* m_hNumOfHits_Phys_TF_SiEndCapB;
-   TH1D* m_hNumOfHits_Phys_TF_MPGDEndCapB;
-   TH1D* m_hNumOfHits_Phys_TF_TOFEndCapB;
-
-   TH1D* m_hNumOfHits_BKG_TF_AllDet;
-   TH1D* m_hNumOfHits_BKG_TF_VTX;
-   TH1D* m_hNumOfHits_BKG_TF_SiBarrel;
-   TH1D* m_hNumOfHits_BKG_TF_MPGDBarrel;
-   TH1D* m_hNumOfHits_BKG_TF_TOFBarrel;
-   TH1D* m_hNumOfHits_BKG_TF_SiEndCapF;
-   TH1D* m_hNumOfHits_BKG_TF_MPGDEndCapF;
-   TH1D* m_hNumOfHits_BKG_TF_TOFEndCapF;
-   TH1D* m_hNumOfHits_BKG_TF_SiEndCapB;
-   TH1D* m_hNumOfHits_BKG_TF_MPGDEndCapB;
-   TH1D* m_hNumOfHits_BKG_TF_TOFEndCapB;
-
-   TH1D* m_hNumOfHits_All_PhysTS_AllDet;
-   TH1D* m_hNumOfHits_All_PhysTS_VTX;
-   TH1D* m_hNumOfHits_All_PhysTS_SiBarrel;
-   TH1D* m_hNumOfHits_All_PhysTS_MPGDBarrel;
-   TH1D* m_hNumOfHits_All_PhysTS_TOFBarrel;
-   TH1D* m_hNumOfHits_All_PhysTS_SiEndCapF;
-   TH1D* m_hNumOfHits_All_PhysTS_MPGDEndCapF;
-   TH1D* m_hNumOfHits_All_PhysTS_TOFEndCapF;
-   TH1D* m_hNumOfHits_All_PhysTS_SiEndCapB;
-   TH1D* m_hNumOfHits_All_PhysTS_MPGDEndCapB;
-   TH1D* m_hNumOfHits_All_PhysTS_TOFEndCapB;
-
-   TH1D* m_hNumOfHits_Phys_PhysTS_AllDet;
-   TH1D* m_hNumOfHits_Phys_PhysTS_VTX;
-   TH1D* m_hNumOfHits_Phys_PhysTS_SiBarrel;
-   TH1D* m_hNumOfHits_Phys_PhysTS_MPGDBarrel;
-   TH1D* m_hNumOfHits_Phys_PhysTS_TOFBarrel;
-   TH1D* m_hNumOfHits_Phys_PhysTS_SiEndCapF;
-   TH1D* m_hNumOfHits_Phys_PhysTS_MPGDEndCapF;
-   TH1D* m_hNumOfHits_Phys_PhysTS_TOFEndCapF;
-   TH1D* m_hNumOfHits_Phys_PhysTS_SiEndCapB;
-   TH1D* m_hNumOfHits_Phys_PhysTS_MPGDEndCapB;
-   TH1D* m_hNumOfHits_Phys_PhysTS_TOFEndCapB;
-
-   TH1D* m_hNumOfHits_BKG_PhysTS_AllDet;
-   TH1D* m_hNumOfHits_BKG_PhysTS_VTX;
-   TH1D* m_hNumOfHits_BKG_PhysTS_SiBarrel;
-   TH1D* m_hNumOfHits_BKG_PhysTS_MPGDBarrel;
-   TH1D* m_hNumOfHits_BKG_PhysTS_TOFBarrel;
-   TH1D* m_hNumOfHits_BKG_PhysTS_SiEndCapF;
-   TH1D* m_hNumOfHits_BKG_PhysTS_MPGDEndCapF;
-   TH1D* m_hNumOfHits_BKG_PhysTS_TOFEndCapF;
-   TH1D* m_hNumOfHits_BKG_PhysTS_SiEndCapB;
-   TH1D* m_hNumOfHits_BKG_PhysTS_MPGDEndCapB;
-   TH1D* m_hNumOfHits_BKG_PhysTS_TOFEndCapB;
-
-   TH1D* m_hMCParticleCreationType;
-   TH1D* m_hCreateTimeDist_Phys;
-   TH1D* m_hCreateTimeDist_Sinc;
-   TH1D* m_hCreateTimeDist_eBrems;
-   TH1D* m_hCreateTimeDist_eToshec;
-   TH1D* m_hCreateTimeDist_eClone;
-   TH1D* m_hCreateTimeDist_eBeamGas;
-
-   TH1D* m_hSourceNumOfDist_Phys;
-   TH1D* m_hSourceNumOfDist_Sinc;
-   TH1D* m_hSourceNumOfDist_eBrems;
-   TH1D* m_hSourceNumOfDist_eToshec;
-   TH1D* m_hSourceNumOfDist_eClone;
-   TH1D* m_hSourceNumOfDist_eBeamGas;
-
-   TH1D* m_hSourceTimeOfDist_Phys;
-   TH1D* m_hSourceTimeOfDist_Sinc;
-   TH1D* m_hSourceTimeOfDist_eBrems;
-   TH1D* m_hSourceTimeOfDist_eToshec;
-   TH1D* m_hSourceTimeOfDist_eClone;
-   TH1D* m_hSourceTimeOfDist_eBeamGas;
-
-
-   TH1D* m_hCreateTimeDist_Phys_FirstP;
-   TH2D* m_hIdVsCreateTimeDist_Phys;
-   TH2D* m_hIdVsCreateTimeDist_Phys_Calib;
-   TH2D* m_hIdVsCreateTimeDist_Phys_Orig;
-
-   TH1D* m_hMCPFistHitTime;
-   TH2D* m_hMCPTimeVsR_v;
-   TH2D* m_hMCPTimeVsR_e;
-   TH2D* m_hBTOFTimeVsR_MCP_v;
-   TH2D* m_hBTOFTimeVsR_MCP_e;
-
-   // MPGD_IBarrel, MPGD_OBarrel, MPGD_Back, MPGD_Front, TOFBarrel, TOFEndcap, VertexBarrel, SiBarrel, SiEndcap
-   TH2D* m_hOrigHitTimeBaseVertex;
-   TH2D* m_hCalibHitTimeBaseVertex;
-
-   TH1D* m_hBeamEleEnergy;
-   TH1D* m_hBeamProtonEnergy;
-
-   TH1D* m_hNumOfOrigEle;
-   TH1D* m_hOrigEleSourceZ;
-   TH1D* m_hOrigElePt;
-   TH1D* m_hOrigEleEnergy;
-   TH1D* m_hOrigEleScatterAngle;
-   TH1D* m_hOrigEleScatterEta;
-
-   TH1D* m_hAllScatterEnergy;
-
-   TH1D* m_hAllScatteredPTopologyDist;
-
-   TProfile* m_PhysHitRVsTime; // profile of hit time vs. hit position;
-
-
+   TH1D* m_hTriggerCounts; // histogram for trigger types
+   
    // == member functions == // own function
    void HistInit();
    void ResetValuesForEachEvent();
    void WriteHists();
-
    
-   Double_t HistCriticalValueEstimation(Double_t confidence, TH1D* hist);
+   float m_timewindow = 2000.0; // width of time split for a time frame [ns]
+   float m_timeslice_width = 20.0; // width of time split for a time frame [ns]
 
-   void MCParticleTimeEstimation();
-   void DetectorHitTimeCheck();
-   void DetectorNumOfHits();
+   // Int_t detId[10] = {12, 13, 1, 4, 8, 9, 11, 14, 15, 16}; // TOF and MPGD, Silicon excluded
+   Int_t detId[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}; // TOF and MPGD, Silicon excluded
+
+   float m_timeResolution_Silicon = 2000.0; // time resolution [ns]
+   float m_timeResolution_MPGD = 10.0; // time resolution [ns]
+   // float m_timeResolution_TOF = 0.030; // time resolution [ns]
+   float m_timeResolution_TOF = 1.0; // time resolution [ns]
+
+   bool bInitialLoop = true;
+   std::vector<std::vector<unsigned int > > m_vOrigHitId;
+
+   std::vector<std::vector<unsigned int > > m_vSameTSHitId;
+   std::vector<std::vector<unsigned int > > m_vOutputHitContainer;
+
+
+   bool m_bDetLastHits[10] = {false, false, false, false, false, false, false, false, false, false};
+
+   bool m_bOnceTriggered = false;
+   bool m_bScanedAllTimeWindows = false;
+
+   bool m_bOncePhysicsTriggered = false;
+   int checkCount = 0;
+
+   void HitTimeCalibration(Double_t timeOffSet);
+   Double_t MakeRandomTimeOffset(Int_t randomSeed);
+   Double_t FindFirstPhysParticle();
+
+   Double_t HistCriticalValueEstimation(Double_t confidence, TH1D* hist);
+   
+   void FillEventDisplay(Double_t sTime, Double_t eTime, bool bTF);
 
    inline Double_t HitTimeCalibrationByR(Double_t hitTime, Double_t hitR){
-      return hitTime - 0.003*hitR;
+      // return hitTime - 0.003*hitR;
+
+      Double_t calibTime = (hitR - 91.7)/279;
+      return hitTime - calibTime;
    };
 
    // == inherited functions == //
    std::vector<SimTrackerHitKuma> LoadInputHits();
+
+   Int_t judgeInTrigger(Int_t trigContena1[12][8], Int_t trigContena2[12][8],\
+      SimTrackerHitKuma& simHitsKuma, Int_t hitId,\
+      Double_t baseHitTime, Double_t baseDetTimeRes,\
+         Double_t targetHitTime, Double_t targetDetTimeRes);
 };
+
 
 #endif
 
-// #ifndef checkSimInput_cxx
-// #define checkSimInput_cxx
-
-// <HitPosition>
-// TH1F *hHitPosiR_SiBarrel_WOUnfold = new TH1F("hHitPosiR_SiBarrel_WOUnfold", "hHitPosiR_SiBarrel_WOUnfold;#it{r} [mm];count", 800, 0, 800);
-//  events->Draw("sqrt(SiBarrelTrackerRecHits.position.x*SiBarrelTrackerRecHits.position.x + SiBarrelTrackerRecHits.position.y*SiBarrelTrackerRecHits.position.y + SiBarrelTrackerRecHits.position.z*SiBarrelTrackerRecHits.position.z)>>hHitPosiR_SiBarrel_WOUnfold", "SiBarrelTrackerRecHits.time < 2000")
-// TH1F *hHitPosiR_SiBarrel_WOUnfold = (TH1F*)gDirectory->Get("hHitPosiR_SiBarrel_WOUnfold");
-
-// TH1F *hHitPosiR_SiBarrel_WUnfold = new TH1F("hHitPosiR_SiBarrel_WUnfold", "hHitPosiR_SiBarrel_WUnfold;#it{r} [mm];count", 800, 0, 800);
-// events->Draw("sqrt(SiBarrelTrackerRecHits.position.x*SiBarrelTrackerRecHits.position.x + SiBarrelTrackerRecHits.position.y*SiBarrelTrackerRecHits.position.y + SiBarrelTrackerRecHits.position.z*SiBarrelTrackerRecHits.position.z)>>hHitPosiR_SiBarrel_WUnfold")
-// TH1F *hHitPosiR_SiBarrel_WUnfold = (TH1F*)gDirectory->Get("hHitPosiR_SiBarrel_WUnfold");
-
-// <Time>
-// TH1F *hHitTime_SiBarrel_WOUnfold = new TH1F("hHitTime_SiBarrel_WOUnfold", "hHitTime_SiBarrel_WOUnfold;#it{t} [ns];count", 2000, 0, 2000);
-//  events->Draw("SiBarrelTrackerRecHits.time>>hHitTime_SiBarrel_WOUnfold", "SiBarrelTrackerRecHits.time < 2000")
-// TH1F *hHitTime_SiBarrel_WOUnfold = (TH1F*)gDirectory->Get("hHitTime_SiBarrel_WOUnfold");
-
-// TH1F *hHitTime_SiBarrel_WUnfold = new TH1F("hHitTime_SiBarrel_WUnfold", "hHitTime_SiBarrel_WUnfold;#it{t} [ns];count", 2000, 0, 2000);
-//  events->Draw("SiBarrelTrackerRecHits.time>>hHitTime_SiBarrel_WUnfold")
-// TH1F *hHitTime_SiBarrel_WUnfold = (TH1F*)gDirectory->Get("hHitTime_SiBarrel_WUnfold");
-
-// TH1F *hHitTime_SiBarrel_Eff = (TH1F *) hHitTime_SiBarrel_WUnfold->Clone("hHitTime_SiBarrel_Eff")
-// hHitTime_SiBarrel_Eff->Divide(hHitTime_SiBarrel_Eff, hHitTime_SiBarrel_WOUnfold, 1.0, 1.0, "b")
+// #ifndef triggerCombineChecker_cxx
+// #define triggerCombineChecker_cxx
 
 
-// <DepEnergy>
-// TH1F *hHitDepE_SiBarrel_WOUnfold = new TH1F("hHitDepE_SiBarrel_WOUnfold", "hHitDepE_SiBarrel_WOUnfold;depE [GeV];count", 100, 0, 0.001);
-// events->Draw("SiBarrelTrackerRecHits.edep>>hHitDepE_SiBarrel_WOUnfold", "SiBarrelTrackerRecHits.time < 2000")
-// TH1F *hHitDepE_SiBarrel_WOUnfold = (TH1F*)gDirectory->Get("hHitDepE_SiBarrel_WOUnfold");
-
-// TH1F *hHitDepE_SiBarrel_WUnfold = new TH1F("hHitDepE_SiBarrel_WUnfold", "hHitDepE_SiBarrel_WUnfold;depE [GeV];count", 100, 0, 0.001);
-// events->Draw("SiBarrelTrackerRecHits.edep>>hHitDepE_SiBarrel_WUnfold")
-// TH1F *hHitDepE_SiBarrel_WUnfold = (TH1F*)gDirectory->Get("hHitDepE_SiBarrel_WUnfold");
-
-// TH1F *hHitDepE_SiBarrel_Eff = (TH1F *) hHitDepE_SiBarrel_WUnfold->Clone("hHitDepE_SiBarrel_Eff")
-// hHitDepE_SiBarrel_Eff->Divide(hHitDepE_SiBarrel_Eff, hHitDepE_SiBarrel_WOUnfold, 1.0, 1.0, "b")
-
-
-
-// <Time>
-// TH1F *hHitTime_VertexBarrel_WOUnfold = new TH1F("hHitTime_VertexBarrel_WOUnfold", "hHitTime_VertexBarrel_WOUnfold;#it{t} [ns];count", 2000, 0, 2000);
-// events->Draw("SiBarrelVertexRecHits.time>>hHitTime_VertexBarrel_WOUnfold", "SiBarrelVertexRecHits.time < 2000")
-// TH1F *hHitTime_VertexBarrel_WOUnfold = (TH1F*)gDirectory->Get("hHitTime_VertexBarrel_WOUnfold");
-
-// TH1F *hHitTime_VertexBarrel_WUnfold = new TH1F("hHitTime_VertexBarrel_WUnfold", "hHitTime_VertexBarrel_WUnfold;#it{t} [ns];count", 2000, 0, 2000);
-// events->Draw("SiBarrelVertexRecHits.time>>hHitTime_VertexBarrel_WUnfold")
-// TH1F *hHitTime_VertexBarrel_WUnfold = (TH1F*)gDirectory->Get("hHitTime_VertexBarrel_WUnfold");
-
-// TH1F *hHitTime_VertexBarrel_Eff = (TH1F *) hHitTime_VertexBarrel_WUnfold->Clone("hHitTime_VertexBarrel_Eff")
-// hHitTime_VertexBarrel_Eff->Divide(hHitTime_VertexBarrel_Eff, hHitTime_VertexBarrel_WOUnfold, 1.0, 1.0, "b")
-
-
-
-
-// #endif // #ifdef checkSimInput_cxx
+// #endif // #ifdef triggerCombineChecker_cxx

@@ -38,7 +38,6 @@ triggerCombineChecker::~triggerCombineChecker()
    delete fChain->GetCurrentFile();
 }
 
-
 void triggerCombineChecker::Loop()
 {
    if (fChain == 0) return;
@@ -54,8 +53,6 @@ void triggerCombineChecker::Loop()
    size_t numOfPhys = 0;
    size_t numOfNoise = 0;
 
-   bool bRandTimeOffset = false;
-
    bool bTargetEV = false;
    // m_vTargetEvents = {75, 97, 131, 173, 199, 203, 203, 223, 235, 246, 277, 281, 328, 363, 369};
    // Case1: 42, 222, 245, 301, 774, 790, 795, 851
@@ -68,14 +65,14 @@ void triggerCombineChecker::Loop()
    
 
    Int_t numOfEventLoops = 1000;
-   // Int_t numOfEventLoops = 10;
+   // Int_t numOfEventLoops = 1;
    // Int_t numOfEventLoops = nentries;
    if(bTargetEV) numOfEventLoops = m_vTargetEvents.size();
 
    // float m_timewindow = 2000.0; // width of time split for a time frame [ns]
    // float m_timeslice_width = 20.0; // width of time split for a time frame [ns]
    Double_t m_timeWindows[17] = {148.05, 14.25, 13.05, 55.25, 1.25, 0, 0, 0, 15.65, 10.85, 0, 27.55, 16.25, 15.25, 0, 18.45, 14.25};
-  
+
 
    // for (Long64_t jentry=0; jentry<1000; jentry++) {
    for (Long64_t jentry = 0; jentry < numOfEventLoops; ++jentry) {
@@ -97,22 +94,18 @@ void triggerCombineChecker::Loop()
 
       // == s ==  Hit Time calibration ========================================
       for(int iDet = 0; iDet < 17; ++iDet) m_SimTrackerHitsKuma.at(iDet).sortByTime();
-
-      Double_t randomOffsetTime = 0.;
-      if(bRandTimeOffset) randomOffsetTime = MakeRandomTimeOffset(jentry);
-
-      Double_t timeOffSet = randomOffsetTime;
+      Double_t timeOffSet = 0.;
       HitTimeCalibration(timeOffSet);
       // == e ==  Hit Time calibration ========================================
       
       bool bPhysicsEvent = false; // Set the flag for physics event processing
       Double_t physEventTime = - 999999.;
       physEventTime = FindFirstPhysParticle();
-      if(bRandTimeOffset) physEventTime += timeOffSet;
 
       bool bAdmitedInterval = false;
       Int_t iTimeSlice = 0;
-      float eTime = m_timeslice_width * (iTimeSlice + 1.0);
+      float sTime = m_timeslice_width * iTimeSlice;
+      float eTime = sTime + m_timeslice_width;
 
       Int_t startHitPoint[17] = {0};
       bool bLastHit[17] = {};
@@ -122,98 +115,122 @@ void triggerCombineChecker::Loop()
 
       if(bTargetEV) FillEventDisplay(0., 0., true);
 
-      // iTimeSlice += 1;
-      eTime = m_timeslice_width * (iTimeSlice + 1.0);
+      // == s ==  Time-Slice Loop in a Time-Frame ========================================      
       while (eTime <= m_timewindow){
          // std::cout << "== s 00 Time slice: " << iTimeSlice << ", eTime: " << eTime << ":: physics event time: " << physEventTime <<  " === "<< std::endl;
          bPhysicsEvent = false;
-         if(eTime - m_timeslice_width <= physEventTime && physEventTime < eTime){
+         if(sTime <= physEventTime && physEventTime < eTime){
             bPhysicsEvent = true; // Check if the time slice is within the physics event time window
             numOfPhys++;
          } else numOfNoise++;
 
          Int_t hitsCountsInTS[17] = {0};
-         for(size_t iDet = 0; iDet < 17; ++iDet) m_bDetTriggerLists[iDet] = false; // Reset the minimum hits requirement for the next event
-         for(size_t iDet = 0; iDet < 3; ++iDet) m_bCombinTriggerLists[iDet] = false; // Reset the combined trigger lists for the next event
+         m_bTrigger = false;
 
+         Int_t hitsCountsInTSDevInThetaPhi1[12][8] = {}; // Theta 0-12, Phi 0-8
+         Int_t hitsCountsInTSDevInThetaPhi2[12][8] = {}; // Theta 0-11, Phi 0-8
          for(size_t iDet = 0; iDet < 17; ++iDet){
             if(bLastHit[iDet]) continue; // Skip if the detector has no hits left to process
+            bool bInitialHit = false;
 
             Int_t numberOfHits = m_SimTrackerHitsKuma.at(iDet).getSize();
             for (size_t iHit = startHitPoint[iDet]; iHit < numberOfHits; ++iHit) {
-               startHitPoint[iDet] = iHit; // Update the start point for the next iteration
                Double_t time = m_SimTrackerHitsKuma.at(iDet).getTime(iHit);
-               if(time > eTime) break; // Break if the hit time exceeds the current time slice
+
+               Double_t detTimeRes = 2000.; // default 2000 ns
+               if(iDet == 1 || iDet == 2 || iDet == 8 || iDet == 9) detTimeRes = m_timeResolution_MPGD;
+               else if(iDet == 12 || iDet == 13) detTimeRes = m_timeResolution_TOF;
                
-               // if(iDet == 1 || iDet == 5 || iDet == 8 || iDet == 9 || iDet == 12 || iDet == 15) std::cout << "iDet: " << iDet << ", iHit: " << iHit << ", time: " << m_SimTrackerHitsKuma.at(iDet).getTime(iHit) << std::endl;
+               if(time - detTimeRes < eTime){
+                  Double_t hitX = m_SimTrackerHitsKuma.at(iDet).getPosiX(iHit);
+                  Double_t hitY = m_SimTrackerHitsKuma.at(iDet).getPosiY(iHit);
+                  Double_t hitZ = m_SimTrackerHitsKuma.at(iDet).getPosiZ(iHit);         
+                  Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
+                  Double_t hit_Theta = TMath::ACos(hitZ/hitR);
+                  Double_t hit_Phi = TMath::ATan2(hitY, hitX) + 2*TMath::Pi();
+                  Int_t thetaID1 = hit_Theta / (TMath::Pi()/12.);
+                  Int_t thetaID2 = (hit_Theta + TMath::Pi()/24.) / (TMath::Pi()/12.);
+                  Int_t phiID1 = hit_Phi / (TMath::Pi()/8.);
+                  Int_t phiID2 = (hit_Phi + TMath::Pi()/16.) / (TMath::Pi()/8.);
 
-               hitsCountsInTS[iDet]++;
+                  if(time + detTimeRes > sTime){
+                     //MPGD or TOF
+                     if(iDet == 1 || iDet == 2 || iDet == 8 || iDet == 9 || iDet == 12 || iDet == 13){
+                        hitsCountsInTSDevInThetaPhi1[thetaID1][phiID1]++;
+                        hitsCountsInTSDevInThetaPhi2[thetaID2][phiID2]++;
+                        // std::cout << "iDet: " << iDet << ", iHit: " << iHit\
+                        //    << ", sTime: " << sTime << ", time: " << m_SimTrackerHitsKuma.at(iDet).getTime(iHit)\
+                        //    << ", time + detTimeRes = " << time + detTimeRes << ", eTime: " << eTime<< std::endl;
+                     }
+                     
+                     if(bInitialHit == false){
+                        // Update the start point for the next iteration
+                        startHitPoint[iDet] = iHit;
+                        bInitialHit = true;
+                     }
+
+                  }else{
+                     if(iHit == numberOfHits - 1){
+                        bLastHit[iDet] = true;
+                        break; // Break if the hit time exceeds the current time slice
+                     }
+                  }
+               }else{
+                  if(time - detTimeRes > eTime){
+                     startHitPoint[iDet] = iHit; // Update the start point for the next iteration
+                     bInitialHit = true;
+                     if(time + detTimeRes < sTime && startHitPoint[iDet] == numberOfHits - 1){
+                        bLastHit[iDet] = true;
+                        break; // Break if the hit time exceeds the current time slice
+                     }
+                     // std::cout << "Skipped" << std::endl;
+                  }
+                  break; // Break if the hit time exceeds the current time slice
+               };
+               
             }
-            if(hitsCountsInTS[iDet] > m_bDetMinHitsRequire[iDet]) m_bDetTriggerLists[iDet] = true;
-
-            Double_t eHitTime = -1;
-            if(numberOfHits > 0) eHitTime = m_SimTrackerHitsKuma.at(iDet).getTime(startHitPoint[iDet]);
-            if(eHitTime <= eTime && startHitPoint[iDet] == numberOfHits - 1) bLastHit[iDet] = true;
-
          }
 
-         // Si_Endcap: 15, MPGD_Endcap_b: 1, MPGD_Endcap_f: 4, TOF_endcap: 13
-         // Si_Barrel: 11, MPGD_Barrel_i: 8, MPGD_Barrel_o: 9, TOF_Barrel: 12
-         if(m_bDetTriggerLists[1]&&m_bDetTriggerLists[13]) m_bCombinTriggerLists[0] = true; // Trigger1
-         if(m_bDetTriggerLists[12]&&(m_bDetTriggerLists[8]||m_bDetTriggerLists[9])) m_bCombinTriggerLists[1] = true; // Trigger2
-         if(m_bDetTriggerLists[4]&&m_bDetTriggerLists[15]) m_bCombinTriggerLists[2] = true; // Trigger3
-         
-         // std::cout << "Trigger lists: trigger[1, 2, 3] = [" << m_bCombinTriggerLists[0]\
-         //    << ", " << m_bCombinTriggerLists[1] << ", " << m_bCombinTriggerLists[2] << "]" << std::endl;
-         // std::cout << "Detector trig list: det[1, 5, 8, 9, 12, 15] = [" << m_bDetTriggerLists[1]\
-         //    << ", " << m_bDetTriggerLists[5] << ", " << m_bDetTriggerLists[8] << ", " << m_bDetTriggerLists[9]\
-         //    << ", " << m_bDetTriggerLists[12] << ", " << m_bDetTriggerLists[15] << "]" << std::endl;
+         // == s ==  Trigger Judgement =============================================================
+         for(size_t iThetaBin = 0; iThetaBin < 12; ++iThetaBin){
+            for(size_t iPhiBin = 0; iPhiBin < 8; ++iPhiBin){
+               if(hitsCountsInTSDevInThetaPhi1[iThetaBin][iPhiBin] > 1) m_bTrigger = true;
+               if(hitsCountsInTSDevInThetaPhi2[iThetaBin][iPhiBin] > 1) m_bTrigger = true;
+
+               // if(hitsCountsInTSDevInThetaPhi1[iThetaBin][iPhiBin] > 1 ||\
+               // hitsCountsInTSDevInThetaPhi2[iThetaBin][iPhiBin] > 1) \
+               // std::cout << "Theta:" << iThetaBin << ", Phi: " << iPhiBin\
+               //    << " numOfhits1 = " << hitsCountsInTSDevInThetaPhi1[iThetaBin][iPhiBin]\
+               //    << " numOfhits2 = " << hitsCountsInTSDevInThetaPhi2[iThetaBin][iPhiBin]\
+               //    << std::endl;
+            }
+         }
 
          if(bPhysicsEvent){
-            TriggerHistFill(m_hTriggerTypesPhysCounts, m_hTriggerTypesPhysRatio, m_bCombinTriggerLists);
-            if(m_bCombinTriggerLists[0] || m_bCombinTriggerLists[1] || m_bCombinTriggerLists[2])bPhysCapture = true; 
-         }
-         else{
-            if(!bPhysCapture\
-               && (eTime - 2*m_timeslice_width <= physEventTime && physEventTime < eTime - m_timeslice_width)\
-               && (m_bCombinTriggerLists[0] || m_bCombinTriggerLists[1] || m_bCombinTriggerLists[2])){
-               m_hTriggerTypesPhysCounts->SetBinContent(8, m_hTriggerTypesPhysCounts->GetBinContent(8) - 1);
-               m_hTriggerTypesPhysRatio->SetBinContent(8, m_hTriggerTypesPhysRatio->GetBinContent(8) - 1);
-               TriggerHistFill(m_hTriggerTypesPhysCounts, m_hTriggerTypesPhysRatio, m_bCombinTriggerLists);
-               m_vTargetEvents.pop_back();
-            }else{
-               TriggerHistFill(m_hTriggerTypesBKGCounts, m_hTriggerTypesBKGRatio, m_bCombinTriggerLists);
+            if(m_bTrigger){
+               m_hTriggerCounts->Fill(1);
+               bPhysCapture = true;
             }
+         }else{
+            if(!bPhysCapture
+               && (eTime - 2*m_timeslice_width <= physEventTime && physEventTime < eTime - m_timeslice_width)
+               && (m_bTrigger)){
+               m_hTriggerCounts->Fill(1);
+               m_vTargetEvents.pop_back();
+            }else if(m_bTrigger) m_hTriggerCounts->Fill(3);
          }
 
-         // if(!bPhysicsEvent && (m_bCombinTriggerLists[0] || m_bCombinTriggerLists[1] || m_bCombinTriggerLists[2])){
-         //    // m_vTargetEvents.push_back(m_pubEvNum); // Store the event number if it has any of the combined triggers
-         //    FillEventDisplay(eTime - m_timeslice_width, eTime, false);
-         // }
-         if(bPhysicsEvent && (!m_bCombinTriggerLists[0] && !m_bCombinTriggerLists[1] && !m_bCombinTriggerLists[2])){
+         if(bPhysicsEvent && (!m_bTrigger)){
             m_vTargetEvents.push_back(m_pubEvNum);
             FillEventDisplay(eTime - m_timeslice_width, eTime, false);
          }
-
-
-         if(m_bCombinTriggerLists[0] && !m_bCombinTriggerLists[1] && !m_bCombinTriggerLists[2]){
-            numOfEvents_TrigRegion[2] += 1.0; // Count the number of events in the physics region without Trigger2 and Trigger3
-            for(size_t iDet = 0; iDet < 17; ++iDet){
-               if(!m_bDetTriggerLists[iDet]) continue; // Skip if the detector has no hits
-               numOfEvents_EachDet_TrigRegion[2][iDet] += 1;
-            }
-         }else if(m_bCombinTriggerLists[1] || m_bCombinTriggerLists[2]){
-            numOfEvents_TrigRegion[3] += 1.0; // Count the number of events in the physics region without Trigger2 and Trigger3
-            for(size_t iDet = 0; iDet < 17; ++iDet){  
-               if(!m_bDetTriggerLists[iDet]) continue; // Skip if the detector has no hits
-               numOfEvents_EachDet_TrigRegion[3][iDet] += 1;
-            }
-         }
+         // == s ==  Trigger Judgement =============================================================
 
          iTimeSlice++;
-         eTime = m_timeslice_width * (iTimeSlice + 1.0);         
+         sTime = m_timeslice_width * iTimeSlice;
+         eTime = sTime + m_timeslice_width;
       }
-      // == s == Internal Interval loop  =======================================
+      // == e ==  Time-Slice Loop in a Time-Frame ==================================================
 
       ResetValuesForEachEvent();
 
@@ -222,21 +239,9 @@ void triggerCombineChecker::Loop()
 
 
    std::cout << "Number of events: " << numOfPhys << ", numOfNoise: " << numOfNoise << std::endl;
-   m_hTriggerTypesPhysCounts->SetBinContent(10, numOfPhys);
-   m_hTriggerTypesPhysRatio->SetBinContent(10, numOfPhys);
-   m_hTriggerTypesPhysRatio->Scale(1. / (1.*numOfPhys));
-   m_hTriggerTypesBKGCounts->SetBinContent(10, numOfNoise);
-   m_hTriggerTypesBKGRatio->SetBinContent(10, numOfNoise);
-   m_hTriggerTypesBKGRatio->Scale(1. / (1.*numOfNoise));
-
-   for(size_t iTrig = 0; iTrig < 10; ++iTrig){
-      m_hTriggerTypesPhysCounts->SetBinError(iTrig + 1, 0.0);
-      m_hTriggerTypesPhysRatio->SetBinError(iTrig + 1, 0.0);
-      m_hTriggerTypesBKGCounts->SetBinError(iTrig + 1, 0.0);
-      m_hTriggerTypesBKGRatio->SetBinError(iTrig + 1, 0.0);
-   }
-
-   WOTrig23HistFill(numOfEvents_EachDet_TrigRegion, numOfEvents_TrigRegion);
+   m_hTriggerCounts->SetBinContent(2, numOfPhys);
+   m_hTriggerCounts->SetBinContent(4, numOfNoise);
+   for(size_t iTrig = 0; iTrig < 5; ++iTrig) m_hTriggerCounts->SetBinError(iTrig + 1, 0.0);
 
    WriteHists();
 
@@ -244,18 +249,6 @@ void triggerCombineChecker::Loop()
    for(Int_t i = 0; i < m_vTargetEvents.size(); i++) std::cout << m_vTargetEvents.at(i) << ", ";
    std::cout << "};" << std::endl;
 
-   // std::cout << "Number of events in each region: " << std::endl;
-   // std::cout << "Phys W/O Trig23: " << numOfEvents_TrigRegion[0] << std::endl;
-   // std::cout << "Phys W Trig23: " << numOfEvents_TrigRegion[1] << std::endl;
-   // std::cout << "Noise W/O Trig23: " << numOfEvents_TrigRegion[2] << std::endl;
-   // std::cout << "Noise W Trig23: " << numOfEvents_TrigRegion[3] << std::endl;
-   // std::cout << "Number of events in each detector: " << std::endl;
-   // for(size_t iDet = 0; iDet < 17; ++iDet) {
-   //    std::cout << "Detector " << iDet << ": " << numOfEvents_EachDet_TrigRegion[0][iDet] << " (W/O Trig23), "
-   //              << numOfEvents_EachDet_TrigRegion[1][iDet] << " (W Trig23), "
-   //              << numOfEvents_EachDet_TrigRegion[2][iDet] << " (BKG W/O Trig23), "
-   //              << numOfEvents_EachDet_TrigRegion[3][iDet] << " (BKG W Trig23)" << std::endl;
-   // }
    std::cout << "Number of noise events: " << numOfNoise << std::endl;
 
 }
@@ -273,7 +266,6 @@ void triggerCombineChecker::HitTimeCalibration(Double_t timeOffSet){
          Double_t hitY = m_SimTrackerHitsKuma.at(iDet).getPosiY(iHit);
          Double_t hitZ = m_SimTrackerHitsKuma.at(iDet).getPosiZ(iHit);         
          Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
-         // if(iDet==16) std::cout << "iDet: " << iDet << ", time: " << hitTime << ", r: " << r << std::endl;
          
          Double_t calibratedTime = HitTimeCalibrationByR(hitTime, hitR) + timeOffSet;
          m_SimTrackerHitsKuma.at(iDet).setTime(iHit, calibratedTime);
@@ -282,16 +274,6 @@ void triggerCombineChecker::HitTimeCalibration(Double_t timeOffSet){
    }
 }
 
-Double_t triggerCombineChecker::MakeRandomTimeOffset(Int_t randomSeed){
-   // std::random_device rd;   // non-deterministic generator
-   // std::mt19937 gen(rd());  // to seed mersenne twister.
-   std::mt19937 gen(randomSeed);  // to seed mersenne twister.
-   Double_t eTimeWindow = m_timewindow - m_timeslice_width;
-   std::uniform_int_distribution<> dist(0, eTimeWindow); // time frame width 2000 ns   
-   Double_t timeOffset = dist(gen);
-
-   return timeOffset;
-}
 
 Double_t triggerCombineChecker::FindFirstPhysParticle(){
 
@@ -327,92 +309,6 @@ void triggerCombineChecker::FillEventDisplay(Double_t sTime, Double_t eTime, boo
       }
    }
 }
-
-
-void triggerCombineChecker::TriggerHistFill(TH1D* hTrigCount, TH1D* hTrigRatio, bool m_bCombinTriggerLists[3]){
-   if(m_bCombinTriggerLists[0] && m_bCombinTriggerLists[1] && m_bCombinTriggerLists[2]){
-      hTrigCount->Fill(7); // Trigger1+Trigger2+Trigger3
-      hTrigRatio->Fill(7);
-   }
-   if(m_bCombinTriggerLists[0] && m_bCombinTriggerLists[1]){
-      hTrigCount->Fill(4); // Trigger1+Trigger2
-      hTrigRatio->Fill(4); // Trigger1+Trigger2
-   }
-   if(m_bCombinTriggerLists[0] && m_bCombinTriggerLists[2]){
-      hTrigCount->Fill(5); // Trigger1+Trigger3
-      hTrigRatio->Fill(5); // Trigger1+Trigger3
-   }
-   if(m_bCombinTriggerLists[1] && m_bCombinTriggerLists[2]){
-      hTrigCount->Fill(6); // Trigger2+Trigger3
-      hTrigRatio->Fill(6); // Trigger2+Trigger3
-   }
-   if(m_bCombinTriggerLists[0]){
-      hTrigCount->Fill(1); // Trigger1
-      hTrigRatio->Fill(1);
-   }
-   if(m_bCombinTriggerLists[1]){
-      hTrigCount->Fill(2); // Trigger2
-      hTrigRatio->Fill(2);
-   }
-   if(m_bCombinTriggerLists[2]){
-      hTrigCount->Fill(3); // Trigger3
-      hTrigRatio->Fill(3);
-   }
-   if(!m_bCombinTriggerLists[0] && !m_bCombinTriggerLists[1] && !m_bCombinTriggerLists[2]){
-      hTrigCount->Fill(8); // No Trigger
-      hTrigRatio->Fill(8); // No Trigger
-   }
-   if(m_bCombinTriggerLists[0] || m_bCombinTriggerLists[1] || m_bCombinTriggerLists[2]){
-      hTrigCount->Fill(9); // All Trigger
-      hTrigRatio->Fill(9); // All Trigger
-   }
-}
-
-void triggerCombineChecker::WOTrig23HistFill(Double_t numOfEvents_EachDet_TrigRegion[4][18], Double_t numOfEvents_TrigRegion[4]){
-   m_hEventNumberForEachDetector_WOTrig23_Phys->SetBinContent(18, numOfEvents_TrigRegion[0]);
-   m_hEventNumberForEachDetector_WTrig23_Phys->SetBinContent(18, numOfEvents_TrigRegion[1]);
-   m_hEventNumberForEachDetector_WOTrig23_BKG->SetBinContent(18, numOfEvents_TrigRegion[2]);
-   m_hEventNumberForEachDetector_WTrig23_BKG->SetBinContent(18, numOfEvents_TrigRegion[3]);
-   m_hEventNumberRatioForEachDetector_WOTrig23_Phys->SetBinContent(18, numOfEvents_TrigRegion[0]);
-   m_hEventNumberRatioForEachDetector_WTrig23_Phys->SetBinContent(18, numOfEvents_TrigRegion[1]);
-   m_hEventNumberRatioForEachDetector_WOTrig23_BKG->SetBinContent(18, numOfEvents_TrigRegion[2]);
-   m_hEventNumberRatioForEachDetector_WTrig23_BKG->SetBinContent(18, numOfEvents_TrigRegion[3]);
-
-   for(size_t iDet = 0; iDet < 17; ++iDet) {
-      m_hEventNumberForEachDetector_WOTrig23_Phys->SetBinContent(iDet + 1, numOfEvents_EachDet_TrigRegion[0][iDet]);
-      m_hEventNumberForEachDetector_WTrig23_Phys->SetBinContent(iDet + 1, numOfEvents_EachDet_TrigRegion[1][iDet]);
-      m_hEventNumberForEachDetector_WOTrig23_BKG->SetBinContent(iDet + 1, numOfEvents_EachDet_TrigRegion[2][iDet]);
-      m_hEventNumberForEachDetector_WTrig23_BKG->SetBinContent(iDet + 1, numOfEvents_EachDet_TrigRegion[3][iDet]);
-      m_hEventNumberRatioForEachDetector_WOTrig23_Phys->SetBinContent(iDet + 1, numOfEvents_EachDet_TrigRegion[0][iDet]);
-      m_hEventNumberRatioForEachDetector_WTrig23_Phys->SetBinContent(iDet + 1, numOfEvents_EachDet_TrigRegion[1][iDet]);
-      m_hEventNumberRatioForEachDetector_WOTrig23_BKG->SetBinContent(iDet + 1, numOfEvents_EachDet_TrigRegion[2][iDet]);
-      m_hEventNumberRatioForEachDetector_WTrig23_BKG->SetBinContent(iDet + 1, numOfEvents_EachDet_TrigRegion[3][iDet]);
-
-      m_hEventNumberForEachDetector_WOTrig23_Phys->SetBinError(iDet + 1, 0.0);      
-      m_hEventNumberRatioForEachDetector_WOTrig23_Phys->SetBinError(iDet + 1, 0.0);
-      m_hEventNumberForEachDetector_WTrig23_Phys->SetBinError(iDet + 1, 0.0);
-      m_hEventNumberRatioForEachDetector_WTrig23_Phys->SetBinError(iDet + 1, 0.0);
-      m_hEventNumberForEachDetector_WOTrig23_BKG->SetBinError(iDet + 1, 0.0);
-      m_hEventNumberRatioForEachDetector_WOTrig23_BKG->SetBinError(iDet + 1, 0.0);
-      m_hEventNumberForEachDetector_WTrig23_BKG->SetBinError(iDet + 1, 0.0);
-      m_hEventNumberRatioForEachDetector_WTrig23_BKG->SetBinError(iDet + 1, 0.0);
-   }
-
-   m_hEventNumberRatioForEachDetector_WOTrig23_Phys->Scale(1./(1.*numOfEvents_TrigRegion[0]));
-   m_hEventNumberRatioForEachDetector_WTrig23_Phys->Scale(1./(1.*numOfEvents_TrigRegion[1]));
-   m_hEventNumberRatioForEachDetector_WOTrig23_BKG->Scale(1./(1.*numOfEvents_TrigRegion[2]));
-   m_hEventNumberRatioForEachDetector_WTrig23_BKG->Scale(1./(1.*numOfEvents_TrigRegion[3]));
-
-   m_hEventNumberForEachDetector_WOTrig23_Phys->SetBinError(18, 0.0);      
-   m_hEventNumberRatioForEachDetector_WOTrig23_Phys->SetBinError(18, 0.0);
-   m_hEventNumberForEachDetector_WTrig23_Phys->SetBinError(18, 0.0);
-   m_hEventNumberRatioForEachDetector_WTrig23_Phys->SetBinError(18, 0.0);
-   m_hEventNumberForEachDetector_WOTrig23_BKG->SetBinError(18, 0.0);
-   m_hEventNumberRatioForEachDetector_WOTrig23_BKG->SetBinError(18, 0.0);
-   m_hEventNumberForEachDetector_WTrig23_BKG->SetBinError(18, 0.0);
-   m_hEventNumberRatioForEachDetector_WTrig23_BKG->SetBinError(18, 0.0);
-}
-
 
 Double_t triggerCombineChecker::HistCriticalValueEstimation(Double_t confidence, TH1D* hist) {
    // Calculate the cumulative distribution function (CDF) value for a given threshold
@@ -452,105 +348,22 @@ void triggerCombineChecker::HistInit(){
       1000, -10000, 10000, 250, 0,2500
    );
 
-   m_hTriggerTypesPhysCounts = new TH1D(
-      "m_hTriggerTypesPhysCounts",
-      "m_hTriggerTypesPhysCounts;; count",
-      10, 0.5, 10
+   m_hTriggerCounts = new TH1D(
+      "m_hTriggerCounts",
+      "m_hTriggerCounts;; count",
+      4, 0.5, 4
    );
 
-   m_hTriggerTypesPhysRatio = new TH1D(
-      "m_hTriggerTypesPhysRatio",
-      "m_hTriggerTypesPhysRatio;; ratio",
-      10, 0.5, 10
-   );
-   
-   m_hTriggerTypesBKGCounts = new TH1D(
-      "m_hTriggerTypesBKGCounts",
-      "m_hTriggerTypesBKGCounts;; count",
-      10, 0.5, 10
-   );
-
-   m_hTriggerTypesBKGRatio = new TH1D(
-      "m_hTriggerTypesBKGRatio",
-      "m_hTriggerTypesBKGRatio;; ratio",
-      10, 0.5, 10
-   );
-
-
-   m_hEventNumberForEachDetector_WOTrig23_Phys = new TH1D(
-      "m_hEventNumberForEachDetector_WOTrig23_Phys",
-      "m_hEventNumberForEachDetector_WOTrig23_Phys; sub-detector; count",
-      18, 0.5, 18
-   );
-   m_hEventNumberRatioForEachDetector_WOTrig23_Phys = new TH1D(
-      "m_hEventNumberRatioForEachDetector_WOTrig23_Phys",
-      "m_hEventNumberRatioForEachDetector_WOTrig23_Phys; sub-detector; count",
-      18, 0.5, 18
-   );
-   m_hEventNumberForEachDetector_WTrig23_Phys = new TH1D(
-      "m_hEventNumberForEachDetector_WTrig23_Phys",
-      "m_hEventNumberForEachDetector_WTrig23_Phys; sub-detector; count",
-      18, 0.5, 18
-   );
-   m_hEventNumberRatioForEachDetector_WTrig23_Phys = new TH1D(
-      "m_hEventNumberRatioForEachDetector_WTrig23_Phys",
-      "m_hEventNumberRatioForEachDetector_WTrig23_Phys; sub-detector; count",
-      18, 0.5, 18
-   );
-   m_hEventNumberForEachDetector_WOTrig23_BKG = new TH1D(
-      "m_hEventNumberForEachDetector_WOTrig23_BKG",
-      "m_hEventNumberForEachDetector_WOTrig23_BKG; sub-detector; count",
-      18, 0.5, 18
-   );
-   m_hEventNumberRatioForEachDetector_WOTrig23_BKG = new TH1D(
-      "m_hEventNumberRatioForEachDetector_WOTrig23_BKG",
-      "m_hEventNumberRatioForEachDetector_WOTrig23_BKG; sub-detector; count",
-      18, 0.5, 18
-   );
-   m_hEventNumberForEachDetector_WTrig23_BKG = new TH1D(
-      "m_hEventNumberForEachDetector_WTrig23_BKG",
-      "m_hEventNumberForEachDetector_WTrig23_BKG; sub-detector; count",
-      18, 0.5, 18
-   );
-   m_hEventNumberRatioForEachDetector_WTrig23_BKG = new TH1D(
-      "m_hEventNumberRatioForEachDetector_WTrig23_BKG",
-      "m_hEventNumberRatioForEachDetector_WTrig23_BKG; sub-detector; count",
-      18, 0.5, 18
-   );
-
-   TString triggerNames[10] = {"Trigger1", "Trigger2", "Trigger3", "Trigger1+Trigger2", "Trigger1+Trigger3", "Trigger2+Trigger3", "Trigger1+Trigger2+Trigger3", "missing", "All Triggered", "All Events"};
-   for (int i = 0; i < 10; ++i) {
-      m_hTriggerTypesPhysCounts->GetXaxis()->SetBinLabel(i + 1, triggerNames[i].Data());
-      m_hTriggerTypesPhysRatio->GetXaxis()->SetBinLabel(i + 1, triggerNames[i].Data());
-      m_hTriggerTypesBKGCounts->GetXaxis()->SetBinLabel(i + 1, triggerNames[i].Data());
-      m_hTriggerTypesBKGRatio->GetXaxis()->SetBinLabel(i + 1, triggerNames[i].Data());
+   TString triggerNames[4] = {"Triggered (Phys)", "All Events (Phys)", "Triggered (BKG)", "All Events (BKG)"};
+   for (int i = 0; i < 4; ++i) {
+      m_hTriggerCounts->GetXaxis()->SetBinLabel(i + 1, triggerNames[i].Data());
    }
-
-   for (int i = 0; i < 17; ++i) {
-      m_hEventNumberForEachDetector_WOTrig23_Phys->GetXaxis()->SetBinLabel(i + 1, m_simTrackHitNames[i].Data());
-      m_hEventNumberRatioForEachDetector_WOTrig23_Phys->GetXaxis()->SetBinLabel(i + 1, m_simTrackHitNames[i].Data());
-      m_hEventNumberForEachDetector_WTrig23_Phys->GetXaxis()->SetBinLabel(i + 1, m_simTrackHitNames[i].Data());
-      m_hEventNumberRatioForEachDetector_WTrig23_Phys->GetXaxis()->SetBinLabel(i + 1, m_simTrackHitNames[i].Data());
-      m_hEventNumberForEachDetector_WOTrig23_BKG->GetXaxis()->SetBinLabel(i + 1, m_simTrackHitNames[i].Data());
-      m_hEventNumberRatioForEachDetector_WOTrig23_BKG->GetXaxis()->SetBinLabel(i + 1, m_simTrackHitNames[i].Data());
-      m_hEventNumberForEachDetector_WTrig23_BKG->GetXaxis()->SetBinLabel(i + 1, m_simTrackHitNames[i].Data());
-      m_hEventNumberRatioForEachDetector_WTrig23_BKG->GetXaxis()->SetBinLabel(i + 1, m_simTrackHitNames[i].Data());
-   }
-   m_hEventNumberForEachDetector_WOTrig23_Phys->GetXaxis()->SetBinLabel(18, "AllEvents");
-   m_hEventNumberRatioForEachDetector_WOTrig23_Phys->GetXaxis()->SetBinLabel(18, "AllEvents");
-   m_hEventNumberForEachDetector_WTrig23_Phys->GetXaxis()->SetBinLabel(18, "AllEvents");
-   m_hEventNumberRatioForEachDetector_WTrig23_Phys->GetXaxis()->SetBinLabel(18, "AllEvents");
-   m_hEventNumberForEachDetector_WOTrig23_BKG->GetXaxis()->SetBinLabel(18, "AllEvents");
-   m_hEventNumberRatioForEachDetector_WOTrig23_BKG->GetXaxis()->SetBinLabel(18, "AllEvents");
-   m_hEventNumberForEachDetector_WTrig23_BKG->GetXaxis()->SetBinLabel(18, "AllEvents");
-   m_hEventNumberRatioForEachDetector_WTrig23_BKG->GetXaxis()->SetBinLabel(18, "AllEvents");
 
 
 }
 
 
 void triggerCombineChecker::ResetValuesForEachEvent(){
-
    m_SimTrackerHitsKuma.clear();
    m_SimTrackerHitsKuma.shrink_to_fit();
 
@@ -562,20 +375,7 @@ void triggerCombineChecker::WriteHists(){
    m_hEventDisplayZR_Det->Write();
    m_hEventDisplayZR_Det_TF->Write();
 
-   m_hTriggerTypesPhysCounts->Write();
-   m_hTriggerTypesPhysRatio->Write();
-   m_hTriggerTypesBKGCounts->Write();
-   m_hTriggerTypesBKGRatio->Write();
-
-   m_hEventNumberForEachDetector_WOTrig23_Phys->Write();
-   m_hEventNumberRatioForEachDetector_WOTrig23_Phys->Write();
-   m_hEventNumberForEachDetector_WTrig23_Phys->Write();
-   m_hEventNumberRatioForEachDetector_WTrig23_Phys->Write();
-   m_hEventNumberForEachDetector_WOTrig23_BKG->Write();
-   m_hEventNumberRatioForEachDetector_WOTrig23_BKG->Write();
-   m_hEventNumberForEachDetector_WTrig23_BKG->Write();
-   m_hEventNumberRatioForEachDetector_WTrig23_BKG->Write();
-
+   m_hTriggerCounts->Write();
 
    oFile->Close();
 }

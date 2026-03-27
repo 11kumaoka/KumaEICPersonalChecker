@@ -47,18 +47,20 @@ void checkSimInput::Loop()
    Long64_t nbytes = 0, nb = 0;
    Double_t numOfEvents[18] = {};
 
-   bool bTargetEV = true;
-   m_vTargetEvents = {3};
+   bool bTargetEV = false;
+   m_vTargetEvents = {144};
    
    // (66 events)
    // m_vTargetEvents = {2, 3, 9, 16, 19, 21, 22, 31, 39, 47, 51, 66, 81, 86, 88, 89, 91, 103, 104, 127, 144, 151, 157, 169, 183, 192, 204, 206, 210, 213, 217, 221, 227, 238, 241, 251, 258, 259, 261, 265, 269, 281, 282, 286, 288, 298, 306, 317, 321, 322, 326, 334, 337, 343, 349, 350, 351, 357, 358, 362, 364, 369, 379, 386, 389, 391, };
 
-   Int_t numOfEventLoops = 10000;
+   Int_t numOfEventLoops = 1000;
+   // Int_t numOfEventLoops = 1;
    // Int_t numOfEventLoops = nentries;
    if(bTargetEV) numOfEventLoops = m_vTargetEvents.size();
 
    Double_t m_timeWindows[17] = {148.05, 14.25, 13.05, 55.25, 1.25, 0, 0, 0, 15.65, 10.85, 0, 27.55, 16.25, 15.25, 0, 18.45, 14.25};
-  
+   
+
 
    // for (Long64_t jentry=0; jentry<1000; jentry++) {
    for (Long64_t jentry = 0; jentry < numOfEventLoops; ++jentry) {
@@ -82,6 +84,12 @@ void checkSimInput::Loop()
       //    std::cout << "SiBarrelHits time: " << time << std::endl;
       // }
       
+      // == s == MC particle creat timing estimation ===========================
+      MCParticleTimeEstimation();
+      DetectorHitTimeCheck();
+      DetectorNumOfHits();
+      // == e == MC particle creat timing estimation ===========================
+
       Double_t minTimeArray[17] = {-9999.}; // Initialize to a large value
       for(int iDet = 0; iDet < 17; ++iDet){
          Double_t sumEnergyInAnEvent = 0.;
@@ -241,10 +249,13 @@ void checkSimInput::Loop()
    for(Int_t i = 0; i < 17; i++) std::cout << timeWindow90Percent[i] << ", ";
    std::cout << "};" << std::endl;
 
+   std::cout << "Largest Num of Hits: Event ID = " << largestNumOfHitsEventId << ", Num of Hits = " << largestNumOfHits << std::endl;
+   std::cout << "Smallest Num of Hits: Event ID = " << smallestNumOfHitsEventId << ", Num of Hits = " << smallestNumOfHits << std::endl;
+
 }
 
 
-Double_t HistCriticalValueEstimation(Double_t confidence, TH1D* hist) {
+Double_t checkSimInput::HistCriticalValueEstimation(Double_t confidence, TH1D* hist) {
    // Calculate the cumulative distribution function (CDF) value for a given threshold
    // pThre: threshold value
    // hist: histogram to calculate CDF from
@@ -265,6 +276,946 @@ Double_t HistCriticalValueEstimation(Double_t confidence, TH1D* hist) {
    return pThreX;
 }
 
+void checkSimInput::MCParticleTimeEstimation(){
+
+   Double_t fastestMCHitTime = 9999999.;
+   for(Int_t iMCHit = 0; iMCHit < MCParticles_; ++iMCHit) {
+      Int_t pType = MCParticles_generatorStatus[iMCHit];      
+      if(pType == 0 || pType >  1100) continue; // Skip if not a physics event
+      Double_t mcHitTime = MCParticles_time[iMCHit];
+      if(MCParticles_parents_begin[iMCHit] == 0) fastestMCHitTime = mcHitTime; // Ensure the status is set correctly      
+   }
+   Int_t numOfTimeSlice = (Int_t)(fastestMCHitTime/m_timeSlice);
+   Double_t sTimeSlice = numOfTimeSlice * m_timeSlice;
+   Double_t eTimeSlice = (numOfTimeSlice + 1) * m_timeSlice;
+
+   bool bFirstMCPhys = true;
+   Double_t firstMCPhysTime = 999999.;
+
+   Int_t numOfSource_Phys = 0;
+   Int_t numOfSource_Sinc = 0;
+   Int_t numOfSource_eBrems = 0;
+   Int_t numOfSource_eToshec = 0;
+   Int_t numOfSource_eClone = 0;
+   Int_t numOfSource_eBeamGas = 0;
+
+   Int_t numOfOrigEle = 0;
+   Double_t colliEnergy = 0.;
+
+   for (int iP = 0; iP < MCParticles_; ++iP) {
+      Double_t pCreatTime = MCParticles_time[iP];
+      Int_t pType = MCParticles_generatorStatus[iP];
+      m_hMCParticleCreationType->Fill(pType);
+
+      m_hMCPGeneStatusVsHitTime->Fill(pType, pCreatTime);
+
+      Double_t MCPVertexX = MCParticles_vertex_x[iP];
+      Double_t MCPVertexY = MCParticles_vertex_y[iP];
+      Double_t MCPVertexR = std::sqrt(MCPVertexX*MCPVertexX + MCPVertexY*MCPVertexY);
+      Double_t MCPVertexZ = MCParticles_vertex_z[iP];
+
+      Double_t px = MCParticles_momentum_x[iP];
+      Double_t py = MCParticles_momentum_y[iP];
+      Double_t pz = MCParticles_momentum_z[iP];
+
+      Double_t p = TMath::Sqrt(px*px + py*py + pz*pz);
+      Double_t pt = TMath::Sqrt(px*px + py*py);
+      Double_t energy = TMath::Sqrt(p*p + MCParticles_mass[iP]*MCParticles_mass[iP]);
+
+      Double_t scatterAngle = std::acos(pz/p);
+      Double_t eta = -TMath::Log(TMath::Tan(scatterAngle/2.));
+
+      if(pType == 0 || pType >  1100) {
+         m_hCreateTimeDist_Phys->Fill(pCreatTime);
+         if(bFirstMCPhys){
+            m_hCreateTimeDist_Phys_FirstP->Fill(pCreatTime);
+            firstMCPhysTime = pCreatTime;
+         }
+         m_hIdVsCreateTimeDist_Phys->Fill(iP ,pCreatTime - firstMCPhysTime);
+         m_hIdVsCreateTimeDist_Phys_Orig->Fill(iP ,pCreatTime);
+
+         Double_t hitR = TMath::Sqrt(MCParticles_vertex_x[iP]*MCParticles_vertex_x[iP] + MCParticles_vertex_y[iP]*MCParticles_vertex_y[iP] + MCParticles_vertex_z[iP]*MCParticles_vertex_z[iP]);
+         Double_t calibTime = HitTimeCalibrationByR(pCreatTime, hitR);
+         calibTime -= firstMCPhysTime; // Adjust the calibrated time by the first physics event time
+         m_hIdVsCreateTimeDist_Phys_Calib->Fill(iP ,calibTime);
+         
+         bFirstMCPhys = false;
+      }
+      else if(pType < 2100) m_hCreateTimeDist_Sinc->Fill(pCreatTime);
+      else if(pType < 3100) m_hCreateTimeDist_eBrems->Fill(pCreatTime);
+      else if(pType < 4100) m_hCreateTimeDist_eToshec->Fill(pCreatTime);
+      else if(pType < 5100) m_hCreateTimeDist_eClone->Fill(pCreatTime);
+      else if(pType < 6100) m_hCreateTimeDist_eBeamGas->Fill(pCreatTime);
+
+
+      if(pType == 1){
+         numOfSource_Phys++;
+         m_hSourceTimeOfDist_Phys->Fill(pCreatTime);
+         // std::cout << " MC Particle Type = " << MCParticles_generatorStatus[iP] << ", Creation Time = " << MCParticles_time[iP] << ", parent begin ID = " << MCParticles_parents_begin[iP] << ", Vertex R = " << MCPVertexR << ", Vertex Z = " << MCPVertexZ << std::endl;
+      } else if(pType == 2001){
+         numOfSource_Sinc++;
+         m_hSourceTimeOfDist_Sinc->Fill(pCreatTime);
+      } else if(pType == 3001){
+         numOfSource_eBrems++;
+         m_hSourceTimeOfDist_eBrems->Fill(pCreatTime);
+      } else if(pType == 4001){
+         numOfSource_eToshec++;
+         m_hSourceTimeOfDist_eToshec->Fill(pCreatTime);
+      } else if(pType == 5001){
+         numOfSource_eClone++;
+         m_hSourceTimeOfDist_eClone->Fill(pCreatTime);
+      } else if(pType == 6001){
+         numOfSource_eBeamGas++;
+         m_hSourceTimeOfDist_eBeamGas->Fill(pCreatTime);
+      }
+
+      // if(MCParticles_parents_begin[iP] == 0){
+      // if(pType > 1999 && pType < 3000){
+         // std::cout << " MC Particle Type = " << MCParticles_generatorStatus[iP] \
+         // << ", PDG ID = " << MCParticles_PDG[iP] \
+         // << ", MCParticles_parents_collectionID = " << _MCParticles_parents_collectionID \
+         // << ", MCParticles_simulatorStatus = " << MCParticles_simulatorStatus \
+         // << ", Creation Time = " << MCParticles_time[iP] << ", Vertex R = " << MCPVertexR << ", Vertex Z = " << MCPVertexZ << std::endl;
+      // }
+
+      // == s == Original Electron Kinematics ==============================
+      if(MCParticles_parents_begin[iP] == 0){
+      // if(pType == 1 && MCParticles_PDG[iP] == 11){
+         m_hOrigElePt->Fill(pt);
+         m_hOrigEleEnergy->Fill(energy);
+         m_hOrigEleScatterAngle->Fill(scatterAngle*180./TMath::Pi());         
+         m_hOrigEleScatterEta->Fill(eta);
+
+         m_hOrigEleSourceZ->Fill(MCParticles_vertex_z[iP]);
+
+         // std::cout << " MC Particle Type = " << MCParticles_generatorStatus[iP] \
+         // << ", PDG ID = " << MCParticles_PDG[iP] \
+         // << ", MCParticles_parents_collectionID = " << _MCParticles_parents_collectionID \
+         // << ", MCParticles_simulatorStatus = " << MCParticles_simulatorStatus \
+         // << ", Creation Time = " << MCParticles_time[iP] << ", Vertex R = " << MCPVertexR << ", Vertex Z = " << MCPVertexZ << std::endl;
+
+         numOfOrigEle++;
+      }
+      // == e == Original Electron Kinematics ==============================
+
+      if(pType == 1 || pType == 2) colliEnergy += energy;
+      if(pType == 4){
+         if(MCParticles_PDG[iP] == 2212) m_hBeamProtonEnergy->Fill(energy);
+         else if(MCParticles_PDG[iP] == 11) m_hBeamEleEnergy->Fill(energy);
+
+         // std::cout << " MC Particle Type = " << MCParticles_generatorStatus[iP] \
+         // << ", PDG ID = " << MCParticles_PDG[iP] \
+         // << ", MCParticles_parents_collectionID = " << _MCParticles_parents_collectionID \
+         // << ", MCParticles_simulatorStatus = " << MCParticles_simulatorStatus \
+         // << ", Creation Time = " << MCParticles_time[iP] << ", Vertex R = " << MCPVertexR << ", Vertex Z = " << MCPVertexZ << std::endl;
+      }
+
+      if(sTimeSlice < pCreatTime && pCreatTime < eTimeSlice){
+         m_hAllScatteredPTopologyDist->Fill(scatterAngle*180./TMath::Pi());
+      }
+      
+   }
+
+   m_hSourceNumOfDist_Phys->Fill(numOfSource_Phys);
+   m_hSourceNumOfDist_Sinc->Fill(numOfSource_Sinc);
+   m_hSourceNumOfDist_eBrems->Fill(numOfSource_eBrems);
+   m_hSourceNumOfDist_eToshec->Fill(numOfSource_eToshec);
+   m_hSourceNumOfDist_eClone->Fill(numOfSource_eClone);
+   m_hSourceNumOfDist_eBeamGas->Fill(numOfSource_eBeamGas);   
+   
+   m_hNumOfOrigEle->Fill(numOfOrigEle);
+   m_hAllScatterEnergy->Fill(colliEnergy);
+}
+
+void checkSimInput::DetectorHitTimeCheck(){
+   Double_t fastestHitTime = 9999999.;
+
+   Double_t fastestMCHitTime = 9999999.;
+   for(Int_t iMCHit = 0; iMCHit < MCParticles_; ++iMCHit) {
+      Int_t pType = MCParticles_generatorStatus[iMCHit];      
+      if(pType == 0 || pType >  1100) continue; // Skip if not a physics event
+      Double_t mcHitTime = MCParticles_time[iMCHit];
+      // std::cout << "mcHitTime = " << mcHitTime << std::endl;
+      // if(mcHitTime != 0 && mcHitTime < fastestMCHitTime) fastestMCHitTime = mcHitTime;
+      // if(mcHitTime != 0 && mcHitTime < fastestMCHitTime) fastestMCHitTime = mcHitTime;      
+      if(MCParticles_parents_begin[iMCHit] == 0) fastestMCHitTime = mcHitTime; // Ensure the status is set correctly      
+   }
+
+   for(Int_t iMCHit = 0; iMCHit < MCParticles_; ++iMCHit) {
+      Int_t pType = MCParticles_generatorStatus[iMCHit];
+      if(pType == 0 || pType >  1100) continue; // Skip if not a physics event
+
+      Double_t mcVertexR = TMath::Sqrt(
+         MCParticles_vertex_x[iMCHit]*MCParticles_vertex_x[iMCHit] +
+         MCParticles_vertex_y[iMCHit]*MCParticles_vertex_y[iMCHit] +
+         MCParticles_vertex_z[iMCHit]*MCParticles_vertex_z[iMCHit]
+      );
+      Double_t mcEndpointR = TMath::Sqrt(
+         MCParticles_endpoint_x[iMCHit]*MCParticles_endpoint_x[iMCHit] +
+         MCParticles_endpoint_y[iMCHit]*MCParticles_endpoint_y[iMCHit] +
+         MCParticles_endpoint_z[iMCHit]*MCParticles_endpoint_z[iMCHit]
+      );
+      // fastestMCHitTime = 0.;
+      Double_t mcHitTimeSubOffset = MCParticles_time[iMCHit] - fastestMCHitTime;
+
+      m_hMCPFistHitTime->Fill(fastestMCHitTime);
+      m_hMCPTimeVsR_v->Fill(mcHitTimeSubOffset, mcVertexR);
+      m_hMCPTimeVsR_e->Fill(mcHitTimeSubOffset, mcEndpointR);
+   }
+
+
+   // std::cout << "NumOfHits : MC,  = " << MCParticles_ << ", "\
+   // << _B0ECalHitsContributions_particle_ << ", "\
+   // << _B0TrackerHits_particle_ << ", "\
+   // << _BackwardMPGDEndcapHits_particle_ << ", "\
+   // << _B0TrackerHits_particle_ << ", "\
+   // << _DIRCBarHits_particle_ << ", "\
+   // << _DRICHHits_particle_ << ", "\
+   // << _TOFBarrelHits_particle_ << ", "\
+   // << _EcalBarrelImagingHitsContributions_particle_ << ", "\
+   // << _EcalBarrelScFiHitsContributions_particle_ << ", "\
+   // << _EcalEndcapNHitsContributions_particle_ << ", "\
+   // << _EcalEndcapPHitsContributions_particle_ << ", "\
+   // << _EcalFarForwardZDCHitsContributions_particle_ << ", "\
+   // << _EcalLumiSpecHitsContributions_particle_ << ", "\
+   // << _ForwardMPGDEndcapHits_particle_ << ", "\
+   // << _ForwardOffMTrackerHits_particle_ << ", "\
+   // << _ForwardRomanPotHits_particle_ << ", "\
+   // << _HcalBarrelHitsContributions_particle_ << ", "\
+   // << _HcalEndcapNHitsContributions_particle_ << ", "\
+   // << _HcalEndcapPInsertHitsContributions_particle_ << ", "\
+   // << _HcalFarForwardZDCHitsContributions_particle_ << ", "\
+   // << _LFHCALHitsContributions_particle_ << ", "\
+   // << _LumiSpecTrackerHits_particle_ << ", "\
+   // << _MPGDBarrelHits_particle_ << ", "\
+   // << _OuterMPGDBarrelHits_particle_ << ", "\
+   // << _RICHEndcapNHits_particle_ << ", "\
+   // << _SiBarrelHits_particle_ << ", "\
+   // << _TaggerTrackerHits_particle_ << ", "\
+   // << _TOFBarrelHits_particle_ << ", "\
+   // << _TOFEndcapHits_particle_ << ", "\
+   // << _TrackerEndcapHits_particle_ << ", "\
+   // << _VertexBarrelHits_particle_
+   // << std::endl;
+
+   // std::cout << "TOFBarrelHits_ : _TOFBarrelHits_particle_ = " << TOFBarrelHits_ << ", " << _TOFBarrelHits_particle_ << std::endl;
+
+   for(Int_t iPHit = 0; iPHit < _MPGDBarrelHits_particle_; ++iPHit) {
+      Int_t pID = _MPGDBarrelHits_particle_index[iPHit];
+      if(pID < 0 || pID >= MCParticles_) continue;
+      Int_t pType = MCParticles_generatorStatus[pID];      
+      if(pType == 0 || pType >  1100) continue; // Skip if not a physics event
+      
+      Double_t hitTime = MPGDBarrelHits_time[iPHit];
+      Double_t hitX = MPGDBarrelHits_position_x[iPHit];
+      Double_t hitY = MPGDBarrelHits_position_y[iPHit];
+      Double_t hitZ = MPGDBarrelHits_position_z[iPHit];
+      Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
+      Double_t calibTime = (hitR - 91.7)/279;
+      Double_t calibHitTime = hitTime - calibTime;
+
+      m_hOrigHitTimeBaseVertex->Fill(0 + 0.5, hitTime - fastestMCHitTime);
+      m_hCalibHitTimeBaseVertex->Fill(0 + 0.5, calibHitTime - fastestMCHitTime);
+
+      Double_t mcVertexR = TMath::Sqrt(
+         MCParticles_vertex_x[pID]*MCParticles_vertex_x[pID] +
+         MCParticles_vertex_y[pID]*MCParticles_vertex_y[pID] +
+         MCParticles_vertex_z[pID]*MCParticles_vertex_z[pID]
+      );
+      // std::cout << "MC Particle Hit R : MPGD Barrel Det R = " << mcVertexR << " : " << hitR << std::endl;
+   }
+   for(Int_t iPHit = 0; iPHit < _OuterMPGDBarrelHits_particle_; ++iPHit) {
+      Int_t pID = _OuterMPGDBarrelHits_particle_index[iPHit];
+      if(pID < 0 || pID >= MCParticles_) continue;
+      Int_t pType = MCParticles_generatorStatus[pID];      
+      if(pType == 0 || pType >  1100) continue; // Skip if not a physics event
+      
+      Double_t hitTime = OuterMPGDBarrelHits_time[iPHit];
+      Double_t hitX = OuterMPGDBarrelHits_position_x[iPHit];
+      Double_t hitY = OuterMPGDBarrelHits_position_y[iPHit];
+      Double_t hitZ = OuterMPGDBarrelHits_position_z[iPHit];
+      Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
+      // Double_t calibTime = (hitR - 91.7)/279;
+      Double_t calibTime = hitR/295;
+      Double_t calibHitTime = hitTime - calibTime;
+
+      m_hOrigHitTimeBaseVertex->Fill(1 + 0.5, hitTime - fastestMCHitTime);
+      m_hCalibHitTimeBaseVertex->Fill(1 + 0.5, calibHitTime - fastestMCHitTime);
+   }
+   for(Int_t iPHit = 0; iPHit < _BackwardMPGDEndcapHits_particle_; ++iPHit) {
+      Int_t pID = _BackwardMPGDEndcapHits_particle_index[iPHit];
+      if(pID < 0 || pID >= MCParticles_) continue;
+      Int_t pType = MCParticles_generatorStatus[pID];      
+      if(pType == 0 || pType >  1100) continue; // Skip if not a physics event
+
+      Double_t hitTime = BackwardMPGDEndcapHits_time[iPHit];
+      Double_t hitX = BackwardMPGDEndcapHits_position_x[iPHit];
+      Double_t hitY = BackwardMPGDEndcapHits_position_y[iPHit];
+      Double_t hitZ = BackwardMPGDEndcapHits_position_z[iPHit];
+      Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
+      Double_t calibTime = (hitR - 91.7)/279;
+      Double_t calibHitTime = hitTime - calibTime;
+
+      m_hOrigHitTimeBaseVertex->Fill(2 + 0.5, hitTime - fastestMCHitTime);
+      m_hCalibHitTimeBaseVertex->Fill(2 + 0.5, calibHitTime - fastestMCHitTime);
+   }
+   for(Int_t iPHit = 0; iPHit < _ForwardMPGDEndcapHits_particle_; ++iPHit) {
+      Int_t pID = _ForwardMPGDEndcapHits_particle_index[iPHit];
+      if(pID < 0 || pID >= MCParticles_) continue;
+      Int_t pType = MCParticles_generatorStatus[pID];      
+      if(pType == 0 || pType >  1100) continue; // Skip if not a physics event
+
+      Double_t hitTime = ForwardMPGDEndcapHits_time[iPHit];
+      Double_t hitX = ForwardMPGDEndcapHits_position_x[iPHit];
+      Double_t hitY = ForwardMPGDEndcapHits_position_y[iPHit];
+      Double_t hitZ = ForwardMPGDEndcapHits_position_z[iPHit];
+      Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
+      Double_t calibTime = (hitR - 91.7)/279;
+      Double_t calibHitTime = hitTime - calibTime;
+
+      m_hOrigHitTimeBaseVertex->Fill(3 + 0.5, hitTime - fastestMCHitTime);
+      m_hCalibHitTimeBaseVertex->Fill(3 + 0.5, calibHitTime - fastestMCHitTime);
+   }
+   
+   for(Int_t iPHit = 0; iPHit < _TOFBarrelHits_particle_; ++iPHit) {
+      Int_t pID = _TOFBarrelHits_particle_index[iPHit];
+      if(pID < 0 || pID >= MCParticles_) continue;
+      Int_t pType = MCParticles_generatorStatus[pID];      
+      if(pType == 0 || pType >  1100) continue; // Skip if not a physics event
+      
+      Double_t hitTime = TOFBarrelHits_time[iPHit];
+      Double_t hitX = TOFBarrelHits_position_x[iPHit];
+      Double_t hitY = TOFBarrelHits_position_y[iPHit];
+      Double_t hitZ = TOFBarrelHits_position_z[iPHit];
+      Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
+      Double_t calibTime = (hitR - 91.7)/279;
+      Double_t calibHitTime = hitTime - calibTime;
+
+      m_hOrigHitTimeBaseVertex->Fill(4 + 0.5, hitTime - fastestMCHitTime);
+      m_hCalibHitTimeBaseVertex->Fill(4 + 0.5, calibHitTime - fastestMCHitTime);
+   }
+   for(Int_t iPHit = 0; iPHit < _TOFEndcapHits_particle_; ++iPHit) {
+      Int_t pID = _TOFEndcapHits_particle_index[iPHit];
+      if(pID < 0 || pID >= MCParticles_) continue;
+      Int_t pType = MCParticles_generatorStatus[pID];      
+      if(pType == 0 || pType >  1100) continue; // Skip if not a physics event
+
+      Double_t hitTime = TOFEndcapHits_time[iPHit];
+      Double_t hitX = TOFEndcapHits_position_x[iPHit];
+      Double_t hitY = TOFEndcapHits_position_y[iPHit];
+      Double_t hitZ = TOFEndcapHits_position_z[iPHit];
+      Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
+      Double_t calibTime = (hitR - 91.7)/279;
+      Double_t calibHitTime = hitTime - calibTime;
+
+      m_hOrigHitTimeBaseVertex->Fill(5 + 0.5, hitTime - fastestMCHitTime);
+      m_hCalibHitTimeBaseVertex->Fill(5 + 0.5, calibHitTime - fastestMCHitTime);
+   }
+   
+   for(Int_t iPHit = 0; iPHit < _VertexBarrelHits_particle_; ++iPHit) {
+      Int_t pID = _VertexBarrelHits_particle_index[iPHit];
+      if(pID < 0 || pID >= MCParticles_) continue;
+      Int_t pType = MCParticles_generatorStatus[pID];      
+      if(pType == 0 || pType >  1100) continue; // Skip if not a physics event
+
+      Double_t hitTime = VertexBarrelHits_time[iPHit];
+      Double_t hitX = VertexBarrelHits_position_x[iPHit];
+      Double_t hitY = VertexBarrelHits_position_y[iPHit];
+      Double_t hitZ = VertexBarrelHits_position_z[iPHit];
+      Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
+      Double_t calibTime = (hitR - 91.7)/279;
+      Double_t calibHitTime = hitTime - calibTime;
+
+      m_hOrigHitTimeBaseVertex->Fill(6 + 0.5, hitTime - fastestMCHitTime);
+      m_hCalibHitTimeBaseVertex->Fill(6 + 0.5, calibHitTime - fastestMCHitTime);
+   }   
+   for(Int_t iPHit = 0; iPHit < _SiBarrelHits_particle_; ++iPHit) {
+      Int_t pID = _SiBarrelHits_particle_index[iPHit];
+      if(pID < 0 || pID >= MCParticles_) continue;
+      Int_t pType = MCParticles_generatorStatus[pID];      
+      if(pType == 0 || pType >  1100) continue; // Skip if not a physics event
+
+      Double_t hitTime = SiBarrelHits_time[iPHit];
+      Double_t hitX = SiBarrelHits_position_x[iPHit];
+      Double_t hitY = SiBarrelHits_position_y[iPHit];
+      Double_t hitZ = SiBarrelHits_position_z[iPHit];
+      Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
+      Double_t calibTime = (hitR - 91.7)/279;
+      Double_t calibHitTime = hitTime - calibTime;
+
+      m_hOrigHitTimeBaseVertex->Fill(7 + 0.5, hitTime - fastestMCHitTime);
+      m_hCalibHitTimeBaseVertex->Fill(7 + 0.5, calibHitTime - fastestMCHitTime);
+   }
+   
+   for(Int_t iPHit = 0; iPHit < _TrackerEndcapHits_particle_; ++iPHit) {   
+      Int_t pID = _TrackerEndcapHits_particle_index[iPHit];
+      if(pID < 0 || pID >= MCParticles_) continue;
+      Int_t pType = MCParticles_generatorStatus[pID];
+      if(pType == 0 || pType >  1100) continue; // Skip if not a physics event
+      
+      Double_t hitTime = TrackerEndcapHits_time[iPHit];
+      Double_t hitX = TrackerEndcapHits_position_x[iPHit];
+      Double_t hitY = TrackerEndcapHits_position_y[iPHit];
+      Double_t hitZ = TrackerEndcapHits_position_z[iPHit];
+      Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
+      Double_t calibTime = (hitR - 91.7)/279;
+      Double_t calibHitTime = hitTime - calibTime;
+      
+      m_hOrigHitTimeBaseVertex->Fill(8 + 0.5, hitTime - fastestMCHitTime);
+      m_hCalibHitTimeBaseVertex->Fill(8 + 0.5, calibHitTime - fastestMCHitTime);
+   }   
+}
+
+
+void checkSimInput::DetectorNumOfHits(){
+   Double_t fastestMCHitTime = 9999999.;
+   for(Int_t iMCHit = 0; iMCHit < MCParticles_; ++iMCHit) {
+      Int_t pType = MCParticles_generatorStatus[iMCHit];      
+      if(pType == 0 || pType >  1100) continue; // Skip if not a physics event
+      Double_t mcHitTime = MCParticles_time[iMCHit];
+      if(MCParticles_parents_begin[iMCHit] == 0) fastestMCHitTime = mcHitTime; // Ensure the status is set correctly      
+   }
+   Int_t numOfTimeSlice = (Int_t)(fastestMCHitTime/m_timeSlice);
+   Double_t sTimeSlice = numOfTimeSlice * m_timeSlice;
+   Double_t eTimeSlice = (numOfTimeSlice + 1) * m_timeSlice;
+
+   Int_t numOfHits_All_TF_AllDet = 0;
+   Int_t numOfHits_All_TF_VTX = 0;
+   Int_t numOfHits_All_TF_SiBarrel = 0;
+   Int_t numOfHits_All_TF_MPGDBarrel = 0;
+   Int_t numOfHits_All_TF_TOFBarrel = 0;
+   Int_t numOfHits_All_TF_SiEndCapF = 0;
+   Int_t numOfHits_All_TF_MPGDEndCapF = 0;
+   Int_t numOfHits_All_TF_TOFEndCapF = 0;
+   Int_t numOfHits_All_TF_SiEndCapB = 0;
+   Int_t numOfHits_All_TF_MPGDEndCapB = 0;
+   Int_t numOfHits_All_TF_TOFEndCapB = 0;
+
+   Int_t numOfHits_Phys_TF_AllDet = 0;
+   Int_t numOfHits_Phys_TF_VTX = 0;
+   Int_t numOfHits_Phys_TF_SiBarrel = 0;
+   Int_t numOfHits_Phys_TF_MPGDBarrel = 0;
+   Int_t numOfHits_Phys_TF_TOFBarrel = 0;
+   Int_t numOfHits_Phys_TF_SiEndCapF = 0;
+   Int_t numOfHits_Phys_TF_MPGDEndCapF = 0;
+   Int_t numOfHits_Phys_TF_TOFEndCapF = 0;
+   Int_t numOfHits_Phys_TF_SiEndCapB = 0;
+   Int_t numOfHits_Phys_TF_MPGDEndCapB = 0;
+   Int_t numOfHits_Phys_TF_TOFEndCapB = 0;
+
+   Int_t numOfHits_BKG_TF_AllDet = 0;
+   Int_t numOfHits_BKG_TF_VTX = 0;
+   Int_t numOfHits_BKG_TF_SiBarrel = 0;
+   Int_t numOfHits_BKG_TF_MPGDBarrel = 0;
+   Int_t numOfHits_BKG_TF_TOFBarrel = 0;
+   Int_t numOfHits_BKG_TF_SiEndCapF = 0;
+   Int_t numOfHits_BKG_TF_MPGDEndCapF = 0;
+   Int_t numOfHits_BKG_TF_TOFEndCapF = 0;
+   Int_t numOfHits_BKG_TF_SiEndCapB = 0;
+   Int_t numOfHits_BKG_TF_MPGDEndCapB = 0;
+   Int_t numOfHits_BKG_TF_TOFEndCapB = 0;
+
+   Int_t numOfHits_All_PhysTS_AllDet = 0;
+   Int_t numOfHits_All_PhysTS_VTX = 0;
+   Int_t numOfHits_All_PhysTS_SiBarrel = 0;
+   Int_t numOfHits_All_PhysTS_MPGDBarrel = 0;
+   Int_t numOfHits_All_PhysTS_TOFBarrel = 0;
+   Int_t numOfHits_All_PhysTS_SiEndCapF = 0;
+   Int_t numOfHits_All_PhysTS_MPGDEndCapF = 0;
+   Int_t numOfHits_All_PhysTS_TOFEndCapF = 0;
+   Int_t numOfHits_All_PhysTS_SiEndCapB = 0;
+   Int_t numOfHits_All_PhysTS_MPGDEndCapB = 0;
+   Int_t numOfHits_All_PhysTS_TOFEndCapB = 0;
+
+   Int_t numOfHits_Phys_PhysTS_AllDet = 0;
+   Int_t numOfHits_Phys_PhysTS_VTX = 0;
+   Int_t numOfHits_Phys_PhysTS_SiBarrel = 0;
+   Int_t numOfHits_Phys_PhysTS_MPGDBarrel = 0;
+   Int_t numOfHits_Phys_PhysTS_TOFBarrel = 0;
+   Int_t numOfHits_Phys_PhysTS_SiEndCapF = 0;
+   Int_t numOfHits_Phys_PhysTS_MPGDEndCapF = 0;
+   Int_t numOfHits_Phys_PhysTS_TOFEndCapF = 0;
+   Int_t numOfHits_Phys_PhysTS_SiEndCapB = 0;
+   Int_t numOfHits_Phys_PhysTS_MPGDEndCapB = 0;
+   Int_t numOfHits_Phys_PhysTS_TOFEndCapB = 0;
+
+   Int_t numOfHits_BKG_PhysTS_AllDet = 0;
+   Int_t numOfHits_BKG_PhysTS_VTX = 0;
+   Int_t numOfHits_BKG_PhysTS_SiBarrel = 0;
+   Int_t numOfHits_BKG_PhysTS_MPGDBarrel = 0;
+   Int_t numOfHits_BKG_PhysTS_TOFBarrel = 0;
+   Int_t numOfHits_BKG_PhysTS_SiEndCapF = 0;
+   Int_t numOfHits_BKG_PhysTS_MPGDEndCapF = 0;
+   Int_t numOfHits_BKG_PhysTS_TOFEndCapF = 0;
+   Int_t numOfHits_BKG_PhysTS_SiEndCapB = 0;
+   Int_t numOfHits_BKG_PhysTS_MPGDEndCapB = 0;
+   Int_t numOfHits_BKG_PhysTS_TOFEndCapB = 0;
+
+   for(Int_t iPHit = 0; iPHit < _VertexBarrelHits_particle_; ++iPHit) {
+      Int_t pID = _VertexBarrelHits_particle_index[iPHit];
+      if(pID < 0 || pID >= MCParticles_) continue;
+      
+      Double_t hitTime = VertexBarrelHits_time[iPHit];
+      Double_t hitX = VertexBarrelHits_position_x[iPHit];
+      Double_t hitY = VertexBarrelHits_position_y[iPHit];
+      Double_t hitZ = VertexBarrelHits_position_z[iPHit];
+      Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
+      Double_t calibTime = (hitR - 91.7)/279;
+      Double_t calibHitTime = hitTime - calibTime;
+
+      Int_t pType = MCParticles_generatorStatus[pID];
+      if(pType >= 0 && pType <  1100){
+         numOfHits_All_TF_AllDet++;
+         numOfHits_Phys_TF_AllDet++;
+         numOfHits_All_TF_VTX++;
+         numOfHits_Phys_TF_VTX++;
+         if(sTimeSlice < calibHitTime && calibHitTime < eTimeSlice){
+            numOfHits_All_PhysTS_AllDet++;
+            numOfHits_Phys_PhysTS_AllDet++;
+            numOfHits_All_PhysTS_VTX++;
+            numOfHits_Phys_PhysTS_VTX++;
+         }
+      }else{
+         numOfHits_All_TF_AllDet++;
+         numOfHits_BKG_TF_AllDet++;
+         numOfHits_All_TF_VTX++;
+         numOfHits_BKG_TF_VTX++;
+         if(sTimeSlice < calibHitTime && calibHitTime < eTimeSlice){
+            numOfHits_All_PhysTS_AllDet++;
+            numOfHits_BKG_PhysTS_AllDet++;
+            numOfHits_All_PhysTS_VTX++;
+            numOfHits_BKG_PhysTS_VTX++;
+         }
+      }
+   }
+
+   for(Int_t iPHit = 0; iPHit < _SiBarrelHits_particle_; ++iPHit) {
+      Int_t pID = _SiBarrelHits_particle_index[iPHit];
+      if(pID < 0 || pID >= MCParticles_) continue;
+      
+      Double_t hitTime = SiBarrelHits_time[iPHit];
+      Double_t hitX = SiBarrelHits_position_x[iPHit];
+      Double_t hitY = SiBarrelHits_position_y[iPHit];
+      Double_t hitZ = SiBarrelHits_position_z[iPHit];
+      Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
+      Double_t calibTime = (hitR - 91.7)/279;
+      Double_t calibHitTime = hitTime - calibTime;
+
+      // MCParticles_vertex_z[iPHit]
+      Int_t pType = MCParticles_generatorStatus[pID];
+      if(pType >= 0 && pType <  1100){
+         numOfHits_All_TF_AllDet++;
+         numOfHits_Phys_TF_AllDet++;
+         numOfHits_All_TF_SiBarrel++;
+         numOfHits_Phys_TF_SiBarrel++;
+         if(sTimeSlice < calibHitTime && calibHitTime < eTimeSlice){
+            numOfHits_All_PhysTS_AllDet++;
+            numOfHits_Phys_PhysTS_AllDet++;
+            numOfHits_All_PhysTS_SiBarrel++;
+            numOfHits_Phys_PhysTS_SiBarrel++;
+         }
+      }else{
+         numOfHits_All_TF_AllDet++;
+         numOfHits_BKG_TF_AllDet++;
+         numOfHits_All_TF_SiBarrel++;
+         numOfHits_BKG_TF_SiBarrel++;
+         if(sTimeSlice < calibHitTime && calibHitTime < eTimeSlice){
+            numOfHits_All_PhysTS_AllDet++;
+            numOfHits_BKG_PhysTS_AllDet++;
+            numOfHits_All_PhysTS_SiBarrel++;
+            numOfHits_BKG_PhysTS_SiBarrel++;
+         }
+      }
+   }
+
+   for(Int_t iPHit = 0; iPHit < _MPGDBarrelHits_particle_; ++iPHit) {
+      Int_t pID = _MPGDBarrelHits_particle_index[iPHit];
+      if(pID < 0 || pID >= MCParticles_) continue;
+      
+      Double_t hitTime = MPGDBarrelHits_time[iPHit];
+      Double_t hitX = MPGDBarrelHits_position_x[iPHit];
+      Double_t hitY = MPGDBarrelHits_position_y[iPHit];
+      Double_t hitZ = MPGDBarrelHits_position_z[iPHit];
+      Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
+      Double_t calibTime = (hitR - 91.7)/279;
+      Double_t calibHitTime = hitTime - calibTime;
+
+      // MCParticles_vertex_z[iPHit]
+      Int_t pType = MCParticles_generatorStatus[pID];
+      if(pType >= 0 && pType <  1100){
+         numOfHits_All_TF_AllDet++;
+         numOfHits_Phys_TF_AllDet++;
+         numOfHits_All_TF_MPGDBarrel++;
+         numOfHits_Phys_TF_MPGDBarrel++;
+         if(sTimeSlice < calibHitTime && calibHitTime < eTimeSlice){
+            numOfHits_All_PhysTS_AllDet++;
+            numOfHits_Phys_PhysTS_AllDet++;
+            numOfHits_All_PhysTS_MPGDBarrel++;
+            numOfHits_Phys_PhysTS_MPGDBarrel++;
+         }
+      }else{
+         numOfHits_All_TF_AllDet++;
+         numOfHits_BKG_TF_AllDet++;
+         numOfHits_All_TF_MPGDBarrel++;
+         numOfHits_BKG_TF_MPGDBarrel++;
+         if(sTimeSlice < calibHitTime && calibHitTime < eTimeSlice){
+            numOfHits_All_PhysTS_AllDet++;
+            numOfHits_BKG_PhysTS_AllDet++;
+            numOfHits_All_PhysTS_MPGDBarrel++;
+            numOfHits_BKG_PhysTS_MPGDBarrel++;
+         }
+      }
+   }
+   for(Int_t iPHit = 0; iPHit < _OuterMPGDBarrelHits_particle_; ++iPHit) {
+      Int_t pID = _OuterMPGDBarrelHits_particle_index[iPHit];
+      if(pID < 0 || pID >= MCParticles_) continue;
+      
+      Double_t hitTime = OuterMPGDBarrelHits_time[iPHit];
+      Double_t hitX = OuterMPGDBarrelHits_position_x[iPHit];
+      Double_t hitY = OuterMPGDBarrelHits_position_y[iPHit];
+      Double_t hitZ = OuterMPGDBarrelHits_position_z[iPHit];
+      Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
+      Double_t calibTime = (hitR - 91.7)/279;
+      Double_t calibHitTime = hitTime - calibTime;
+
+      // MCParticles_vertex_z[iPHit]
+      Int_t pType = MCParticles_generatorStatus[pID];
+      if(pType >= 0 && pType <  1100){
+         numOfHits_All_TF_AllDet++;
+         numOfHits_Phys_TF_AllDet++;
+         numOfHits_All_TF_MPGDBarrel++;
+         numOfHits_Phys_TF_MPGDBarrel++;
+         if(sTimeSlice < calibHitTime && calibHitTime < eTimeSlice){
+            numOfHits_All_PhysTS_AllDet++;
+            numOfHits_Phys_PhysTS_AllDet++;
+            numOfHits_All_PhysTS_MPGDBarrel++;
+            numOfHits_Phys_PhysTS_MPGDBarrel++;
+         }
+      }else{
+         numOfHits_All_TF_AllDet++;
+         numOfHits_BKG_TF_AllDet++;
+         numOfHits_All_TF_MPGDBarrel++;
+         numOfHits_BKG_TF_MPGDBarrel++;
+         if(sTimeSlice < calibHitTime && calibHitTime < eTimeSlice){
+            numOfHits_All_PhysTS_AllDet++;
+            numOfHits_BKG_PhysTS_AllDet++;
+            numOfHits_All_PhysTS_MPGDBarrel++;
+            numOfHits_BKG_PhysTS_MPGDBarrel++;
+         }
+      }
+   }
+
+   for(Int_t iPHit = 0; iPHit < _TOFBarrelHits_particle_; ++iPHit) {
+      Int_t pID = _TOFBarrelHits_particle_index[iPHit];
+      if(pID < 0 || pID >= MCParticles_) continue;
+      
+      Double_t hitTime = TOFBarrelHits_time[iPHit];
+      Double_t hitX = TOFBarrelHits_position_x[iPHit];
+      Double_t hitY = TOFBarrelHits_position_y[iPHit];
+      Double_t hitZ = TOFBarrelHits_position_z[iPHit];
+      Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
+      Double_t calibTime = (hitR - 91.7)/279;
+      Double_t calibHitTime = hitTime - calibTime;
+
+      // MCParticles_vertex_z[iPHit]
+      Int_t pType = MCParticles_generatorStatus[pID];
+      if(pType >= 0 && pType <  1100){
+         numOfHits_All_TF_AllDet++;
+         numOfHits_Phys_TF_AllDet++;
+         numOfHits_All_TF_TOFBarrel++;
+         numOfHits_Phys_TF_TOFBarrel++;
+         if(sTimeSlice < calibHitTime && calibHitTime < eTimeSlice){
+            numOfHits_All_PhysTS_AllDet++;
+            numOfHits_Phys_PhysTS_AllDet++;
+            numOfHits_All_PhysTS_TOFBarrel++;
+            numOfHits_Phys_PhysTS_TOFBarrel++;
+         }
+      }else{
+         numOfHits_All_TF_AllDet++;
+         numOfHits_BKG_TF_AllDet++;
+         numOfHits_All_TF_TOFBarrel++;
+         numOfHits_BKG_TF_TOFBarrel++;
+         if(sTimeSlice < calibHitTime && calibHitTime < eTimeSlice){
+            numOfHits_All_PhysTS_AllDet++;
+            numOfHits_BKG_PhysTS_AllDet++;
+            numOfHits_All_PhysTS_TOFBarrel++;
+            numOfHits_BKG_PhysTS_TOFBarrel++;
+         }
+      }
+   }
+
+   for(Int_t iPHit = 0; iPHit < _TrackerEndcapHits_particle_; ++iPHit) { 
+      Int_t pID = _TrackerEndcapHits_particle_index[iPHit];
+      if(pID < 0 || pID >= MCParticles_) continue;
+      
+      Double_t hitTime = TrackerEndcapHits_time[iPHit];
+      Double_t hitX = TrackerEndcapHits_position_x[iPHit];
+      Double_t hitY = TrackerEndcapHits_position_y[iPHit];
+      Double_t hitZ = TrackerEndcapHits_position_z[iPHit];
+      Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
+      Double_t calibTime = (hitR - 91.7)/279;
+      Double_t calibHitTime = hitTime - calibTime;
+
+      Int_t pType = MCParticles_generatorStatus[pID];
+      if(pType >= 0 && pType <  1100){
+         numOfHits_All_TF_AllDet++;
+         numOfHits_Phys_TF_AllDet++;
+         if(MCParticles_vertex_z[iPHit] < 0){
+            numOfHits_All_TF_SiEndCapB++;
+            numOfHits_Phys_TF_SiEndCapB++;
+         }else{
+            numOfHits_All_TF_SiEndCapF++;
+            numOfHits_Phys_TF_SiEndCapF++;
+         }
+         if(sTimeSlice < calibHitTime && calibHitTime < eTimeSlice){
+            numOfHits_All_TF_SiEndCapB++;
+            numOfHits_Phys_TF_SiEndCapB++;
+            if(MCParticles_vertex_z[iPHit] < 0){
+               numOfHits_All_TF_SiEndCapB++;
+               numOfHits_Phys_PhysTS_SiEndCapB++;
+            }else{
+               numOfHits_All_TF_SiEndCapF++;
+               numOfHits_Phys_PhysTS_SiEndCapF++;
+            }
+         }
+      }else{
+         numOfHits_All_TF_AllDet++;
+         numOfHits_BKG_TF_AllDet++;
+         if(MCParticles_vertex_z[iPHit] < 0){
+            numOfHits_All_TF_SiEndCapB++;
+            numOfHits_BKG_TF_SiEndCapF++;
+         }else{
+            numOfHits_All_TF_SiEndCapF++;
+            numOfHits_BKG_TF_SiEndCapB++;
+         }
+         if(sTimeSlice < calibHitTime && calibHitTime < eTimeSlice){
+            if(MCParticles_vertex_z[iPHit] < 0){
+               numOfHits_All_PhysTS_SiEndCapB++;
+               numOfHits_BKG_PhysTS_SiEndCapB++;
+            }else{
+               numOfHits_All_PhysTS_SiEndCapF++;
+               numOfHits_BKG_PhysTS_SiEndCapF++;
+            }
+         }
+      }
+   }
+
+   for(Int_t iPHit = 0; iPHit < _BackwardMPGDEndcapHits_particle_; ++iPHit) {
+      Int_t pID = _BackwardMPGDEndcapHits_particle_index[iPHit];
+      if(pID < 0 || pID >= MCParticles_) continue;
+
+      Double_t hitTime = BackwardMPGDEndcapHits_time[iPHit];
+      Double_t hitX = BackwardMPGDEndcapHits_position_x[iPHit];
+      Double_t hitY = BackwardMPGDEndcapHits_position_y[iPHit];
+      Double_t hitZ = BackwardMPGDEndcapHits_position_z[iPHit];
+      Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
+      Double_t calibTime = (hitR - 91.7)/279;
+      Double_t calibHitTime = hitTime - calibTime;
+
+      Int_t pType = MCParticles_generatorStatus[pID];
+      if(pType >= 0 && pType <  1100){
+         numOfHits_All_TF_AllDet++;
+         numOfHits_Phys_TF_AllDet++;
+         numOfHits_All_TF_MPGDEndCapB++;
+         numOfHits_Phys_TF_MPGDEndCapB++;
+         if(sTimeSlice < calibHitTime && calibHitTime < eTimeSlice){
+            numOfHits_All_PhysTS_AllDet++;
+            numOfHits_Phys_PhysTS_AllDet++;
+            numOfHits_All_PhysTS_MPGDEndCapB++;
+            numOfHits_Phys_PhysTS_MPGDEndCapB++;
+         }
+      }else{
+         numOfHits_All_TF_AllDet++;
+         numOfHits_BKG_TF_AllDet++;
+         numOfHits_All_TF_MPGDEndCapB++;
+         numOfHits_BKG_TF_MPGDEndCapB++;
+         if(sTimeSlice < calibHitTime && calibHitTime < eTimeSlice){
+            numOfHits_All_PhysTS_AllDet++;
+            numOfHits_BKG_PhysTS_AllDet++;
+            numOfHits_All_PhysTS_MPGDEndCapB++;
+            numOfHits_BKG_PhysTS_MPGDEndCapB++;
+         }
+      }
+   }
+   for(Int_t iPHit = 0; iPHit < _ForwardMPGDEndcapHits_particle_; ++iPHit) {
+      Int_t pID = _ForwardMPGDEndcapHits_particle_index[iPHit];
+      if(pID < 0 || pID >= MCParticles_) continue;
+
+      Double_t hitTime = ForwardMPGDEndcapHits_time[iPHit];
+      Double_t hitX = ForwardMPGDEndcapHits_position_x[iPHit];
+      Double_t hitY = ForwardMPGDEndcapHits_position_y[iPHit];
+      Double_t hitZ = ForwardMPGDEndcapHits_position_z[iPHit];
+      Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
+      Double_t calibTime = (hitR - 91.7)/279;
+      Double_t calibHitTime = hitTime - calibTime;
+
+      Int_t pType = MCParticles_generatorStatus[pID];
+      if(pType >= 0 && pType <  1100){
+         numOfHits_All_TF_AllDet++;
+         numOfHits_Phys_TF_AllDet++;
+         numOfHits_All_TF_MPGDEndCapF++;
+         numOfHits_Phys_TF_MPGDEndCapF++;
+         if(sTimeSlice < calibHitTime && calibHitTime < eTimeSlice){
+            numOfHits_All_PhysTS_AllDet++;
+            numOfHits_Phys_PhysTS_AllDet++;
+            numOfHits_All_PhysTS_MPGDEndCapF++;
+            numOfHits_Phys_PhysTS_MPGDEndCapF++;
+         }
+      }else{
+         numOfHits_All_TF_AllDet++;
+         numOfHits_BKG_TF_AllDet++;
+         numOfHits_All_TF_MPGDEndCapF++;
+         numOfHits_BKG_TF_MPGDEndCapF++;
+         if(sTimeSlice < calibHitTime && calibHitTime < eTimeSlice){
+            numOfHits_All_PhysTS_AllDet++;
+            numOfHits_BKG_PhysTS_AllDet++;
+            numOfHits_All_PhysTS_MPGDEndCapF++;
+            numOfHits_BKG_PhysTS_MPGDEndCapF++;
+         }
+      }
+   }
+
+   for(Int_t iPHit = 0; iPHit < _TOFEndcapHits_particle_; ++iPHit) { 
+      Int_t pID = _TOFEndcapHits_particle_index[iPHit];
+      if(pID < 0 || pID >= MCParticles_) continue;
+      
+      Double_t hitTime = TOFEndcapHits_time[iPHit];
+      Double_t hitX = TOFEndcapHits_position_x[iPHit];
+      Double_t hitY = TOFEndcapHits_position_y[iPHit];
+      Double_t hitZ = TOFEndcapHits_position_z[iPHit];
+      Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
+      Double_t calibTime = (hitR - 91.7)/279;
+      Double_t calibHitTime = hitTime - calibTime;
+
+      Int_t pType = MCParticles_generatorStatus[pID];
+
+
+      if(pType >= 0 && pType <  1100){
+         numOfHits_All_TF_AllDet++;
+         numOfHits_Phys_TF_AllDet++;
+         if(MCParticles_vertex_z[iPHit] < 0){
+            numOfHits_All_TF_TOFEndCapB++;
+            numOfHits_Phys_TF_TOFEndCapB++;
+         }else{
+            numOfHits_All_TF_TOFEndCapF++;
+            numOfHits_Phys_TF_TOFEndCapF++;
+         }
+         if(sTimeSlice < calibHitTime && calibHitTime < eTimeSlice){
+            numOfHits_All_TF_AllDet++;
+            numOfHits_Phys_TF_AllDet++;
+            if(MCParticles_vertex_z[iPHit] < 0){
+               numOfHits_All_PhysTS_TOFEndCapB++;
+               numOfHits_Phys_PhysTS_TOFEndCapB++;
+            }else{
+               numOfHits_All_PhysTS_TOFEndCapF++;
+               numOfHits_Phys_PhysTS_TOFEndCapF++;
+            }
+         }
+      }else{
+         numOfHits_All_TF_AllDet++;
+         numOfHits_BKG_TF_AllDet++;
+         if(MCParticles_vertex_z[iPHit] < 0){
+            numOfHits_All_TF_TOFEndCapB++;
+            numOfHits_BKG_TF_TOFEndCapF++;
+         }else{
+            numOfHits_All_TF_TOFEndCapF++;
+            numOfHits_BKG_TF_TOFEndCapB++;
+         }
+         if(sTimeSlice < calibHitTime && calibHitTime < eTimeSlice){
+            if(MCParticles_vertex_z[iPHit] < 0){
+               numOfHits_All_PhysTS_TOFEndCapB++;
+               numOfHits_BKG_PhysTS_TOFEndCapB++;
+            }else{
+               numOfHits_All_PhysTS_TOFEndCapF++;
+               numOfHits_BKG_PhysTS_TOFEndCapF++;
+            }
+         }
+      }
+
+   }
+
+   m_hNumOfHits_All_TF_AllDet->Fill(numOfHits_All_TF_AllDet);
+   m_hNumOfHits_All_TF_VTX->Fill(numOfHits_All_TF_VTX);
+   m_hNumOfHits_All_TF_SiBarrel->Fill(numOfHits_All_TF_SiBarrel);
+   m_hNumOfHits_All_TF_MPGDBarrel->Fill(numOfHits_All_TF_MPGDBarrel);
+   m_hNumOfHits_All_TF_TOFBarrel->Fill(numOfHits_All_TF_TOFBarrel);
+   m_hNumOfHits_All_TF_SiEndCapB->Fill(numOfHits_All_TF_SiEndCapB);
+   m_hNumOfHits_All_TF_MPGDEndCapB->Fill(numOfHits_All_TF_MPGDEndCapB);
+   m_hNumOfHits_All_TF_TOFEndCapB->Fill(numOfHits_All_TF_TOFEndCapB);
+   m_hNumOfHits_All_TF_SiEndCapF->Fill(numOfHits_All_TF_SiEndCapF);
+   m_hNumOfHits_All_TF_MPGDEndCapF->Fill(numOfHits_All_TF_MPGDEndCapF);
+   m_hNumOfHits_All_TF_TOFEndCapF->Fill(numOfHits_All_TF_TOFEndCapF);
+
+   m_hNumOfHits_Phys_TF_AllDet->Fill(numOfHits_Phys_TF_AllDet);
+   m_hNumOfHits_Phys_TF_VTX->Fill(numOfHits_Phys_TF_VTX);
+   m_hNumOfHits_Phys_TF_SiBarrel->Fill(numOfHits_Phys_TF_SiBarrel);
+   m_hNumOfHits_Phys_TF_MPGDBarrel->Fill(numOfHits_Phys_TF_MPGDBarrel);
+   m_hNumOfHits_Phys_TF_TOFBarrel->Fill(numOfHits_Phys_TF_TOFBarrel);
+   m_hNumOfHits_Phys_TF_SiEndCapB->Fill(numOfHits_Phys_TF_SiEndCapB);
+   m_hNumOfHits_Phys_TF_MPGDEndCapB->Fill(numOfHits_Phys_TF_MPGDEndCapB);
+   m_hNumOfHits_Phys_TF_TOFEndCapB->Fill(numOfHits_Phys_TF_TOFEndCapB);
+   m_hNumOfHits_Phys_TF_SiEndCapF->Fill(numOfHits_Phys_TF_SiEndCapF);
+   m_hNumOfHits_Phys_TF_MPGDEndCapF->Fill(numOfHits_Phys_TF_MPGDEndCapF);
+   m_hNumOfHits_Phys_TF_TOFEndCapF->Fill(numOfHits_Phys_TF_TOFEndCapF);
+
+   m_hNumOfHits_BKG_TF_AllDet->Fill(numOfHits_BKG_TF_AllDet);
+   m_hNumOfHits_BKG_TF_VTX->Fill(numOfHits_BKG_TF_VTX);
+   m_hNumOfHits_BKG_TF_SiBarrel->Fill(numOfHits_BKG_TF_SiBarrel);
+   m_hNumOfHits_BKG_TF_MPGDBarrel->Fill(numOfHits_BKG_TF_MPGDBarrel);
+   m_hNumOfHits_BKG_TF_TOFBarrel->Fill(numOfHits_BKG_TF_TOFBarrel);
+   m_hNumOfHits_BKG_TF_SiEndCapB->Fill(numOfHits_BKG_TF_SiEndCapB);
+   m_hNumOfHits_BKG_TF_MPGDEndCapB->Fill(numOfHits_BKG_TF_MPGDEndCapB);
+   m_hNumOfHits_BKG_TF_TOFEndCapB->Fill(numOfHits_BKG_TF_TOFEndCapB);
+   m_hNumOfHits_BKG_TF_SiEndCapF->Fill(numOfHits_BKG_TF_SiEndCapF);
+   m_hNumOfHits_BKG_TF_MPGDEndCapF->Fill(numOfHits_BKG_TF_MPGDEndCapF);
+   m_hNumOfHits_BKG_TF_TOFEndCapF->Fill(numOfHits_BKG_TF_TOFEndCapF);
+
+   m_hNumOfHits_All_PhysTS_AllDet->Fill(numOfHits_All_PhysTS_AllDet);
+   m_hNumOfHits_All_PhysTS_VTX->Fill(numOfHits_All_PhysTS_VTX);
+   m_hNumOfHits_All_PhysTS_SiBarrel->Fill(numOfHits_All_PhysTS_SiBarrel);
+   m_hNumOfHits_All_PhysTS_MPGDBarrel->Fill(numOfHits_All_PhysTS_MPGDBarrel);
+   m_hNumOfHits_All_PhysTS_TOFBarrel->Fill(numOfHits_All_PhysTS_TOFBarrel);
+   m_hNumOfHits_All_PhysTS_SiEndCapB->Fill(numOfHits_All_PhysTS_SiEndCapB);
+   m_hNumOfHits_All_PhysTS_MPGDEndCapB->Fill(numOfHits_All_PhysTS_MPGDEndCapB);
+   m_hNumOfHits_All_PhysTS_TOFEndCapB->Fill(numOfHits_All_PhysTS_TOFEndCapB);
+   m_hNumOfHits_All_PhysTS_SiEndCapF->Fill(numOfHits_All_PhysTS_SiEndCapF);
+   m_hNumOfHits_All_PhysTS_MPGDEndCapF->Fill(numOfHits_All_PhysTS_MPGDEndCapF);
+   m_hNumOfHits_All_PhysTS_TOFEndCapF->Fill(numOfHits_All_PhysTS_TOFEndCapF);
+
+   m_hNumOfHits_Phys_PhysTS_AllDet->Fill(numOfHits_Phys_PhysTS_AllDet);
+   m_hNumOfHits_Phys_PhysTS_VTX->Fill(numOfHits_Phys_PhysTS_VTX);
+   m_hNumOfHits_Phys_PhysTS_SiBarrel->Fill(numOfHits_Phys_PhysTS_SiBarrel);
+   m_hNumOfHits_Phys_PhysTS_MPGDBarrel->Fill(numOfHits_Phys_PhysTS_MPGDBarrel);
+   m_hNumOfHits_Phys_PhysTS_TOFBarrel->Fill(numOfHits_Phys_PhysTS_TOFBarrel);
+   m_hNumOfHits_Phys_PhysTS_SiEndCapB->Fill(numOfHits_Phys_PhysTS_SiEndCapB);
+   m_hNumOfHits_Phys_PhysTS_MPGDEndCapB->Fill(numOfHits_Phys_PhysTS_MPGDEndCapB);
+   m_hNumOfHits_Phys_PhysTS_TOFEndCapB->Fill(numOfHits_Phys_PhysTS_TOFEndCapB);
+   m_hNumOfHits_Phys_PhysTS_SiEndCapF->Fill(numOfHits_Phys_PhysTS_SiEndCapF);
+   m_hNumOfHits_Phys_PhysTS_MPGDEndCapF->Fill(numOfHits_Phys_PhysTS_MPGDEndCapF);
+   m_hNumOfHits_Phys_PhysTS_TOFEndCapF->Fill(numOfHits_Phys_PhysTS_TOFEndCapF);
+
+   m_hNumOfHits_BKG_PhysTS_AllDet->Fill(numOfHits_BKG_PhysTS_AllDet);
+   m_hNumOfHits_BKG_PhysTS_VTX->Fill(numOfHits_BKG_PhysTS_VTX);
+   m_hNumOfHits_BKG_PhysTS_SiBarrel->Fill(numOfHits_BKG_PhysTS_SiBarrel);
+   m_hNumOfHits_BKG_PhysTS_MPGDBarrel->Fill(numOfHits_BKG_PhysTS_MPGDBarrel);
+   m_hNumOfHits_BKG_PhysTS_TOFBarrel->Fill(numOfHits_BKG_PhysTS_TOFBarrel);
+   m_hNumOfHits_BKG_PhysTS_SiEndCapB->Fill(numOfHits_BKG_PhysTS_SiEndCapB);
+   m_hNumOfHits_BKG_PhysTS_MPGDEndCapB->Fill(numOfHits_BKG_PhysTS_MPGDEndCapB);
+   m_hNumOfHits_BKG_PhysTS_TOFEndCapB->Fill(numOfHits_BKG_PhysTS_TOFEndCapB);
+   m_hNumOfHits_BKG_PhysTS_SiEndCapF->Fill(numOfHits_BKG_PhysTS_SiEndCapF);
+   m_hNumOfHits_BKG_PhysTS_MPGDEndCapF->Fill(numOfHits_BKG_PhysTS_MPGDEndCapF);
+   m_hNumOfHits_BKG_PhysTS_TOFEndCapF->Fill(numOfHits_BKG_PhysTS_TOFEndCapF);
+
+
+   if(numOfHits_All_TF_AllDet > largestNumOfHits){
+      largestNumOfHits = numOfHits_All_TF_AllDet;
+      largestNumOfHitsEventId = m_pubEvNum;
+   }
+   if(numOfHits_All_TF_AllDet < smallestNumOfHits){
+      smallestNumOfHits = numOfHits_All_TF_AllDet;
+      smallestNumOfHitsEventId = m_pubEvNum;
+   }
+}
 
 
 void checkSimInput::HistInit(){
@@ -306,6 +1257,18 @@ void checkSimInput::HistInit(){
       17, 0.5, 17, 800, -30, 50
    );
 
+   // MPGD_IBarrel, MPGD_OBarrel, MPGD_Back, MPGD_Front, TOFBarrel, TOFEndcap, VertexBarrel, SiBarrel, SiEndcap
+   m_hOrigHitTimeBaseVertex = new TH2D(
+      "m_hOrigHitTimeBaseVertex",
+      "m_hOrigHitTimeBaseVertex; sub-detector; #it{t}_{det} [ns]",
+      9, 0.5, 9, 800, -30, 50
+   );
+   m_hCalibHitTimeBaseVertex = new TH2D(
+      "m_hCalibHitTimeBaseVertex",
+      "m_hCalibHitTimeBaseVertex; sub-detector; #it{t}_{det} - #it{t}_{PhysVtx} [ns]",
+      9, 0.5, 9, 800, -30, 50
+   );
+
    m_hRVsHitTimeInclusive = new TH2D(
       "m_hRVsHitTimeInclusive",
       "m_hRVsHitTimeInclusive; r [mm]; time [ns]",
@@ -316,6 +1279,13 @@ void checkSimInput::HistInit(){
       "m_hZVsHitTimeInclusive; z [mm]; time [ns]",
       100, -5000, 5000, 20000, 0, 20000
    );
+
+   m_hMCPGeneStatusVsHitTime = new TH2D(
+      "m_hMCPGeneStatusVsHitTime",
+      "m_hMCPGeneStatusVsHitTime; status; time [ns]",
+      20, 0, 20, 3500, -500, 3000
+   );
+
 
    m_hCalibratedTimeWindow90Percent = new TH1D(
       "m_hCalibratedTimeWindow90Percent",
@@ -339,6 +1309,345 @@ void checkSimInput::HistInit(){
       "m_hTimeDispersionDetComp",
       "hTimeDispersionDetComp; sub-detector; #sigma_{t} [ns]",
       17, 0.5, 17, 2000, 0, 200
+   );
+
+
+
+   m_hNumOfHits_All_TF_AllDet = new TH1D(
+      "m_hNumOfHits_All_TF_AllDet",
+      "m_hNumOfHits_All_TF_AllDet;num of hits;count",
+      1000, 0, 1000
+   );
+   m_hNumOfHits_All_TF_VTX = new TH1D(
+      "m_hNumOfHits_All_TF_VTX",
+      "m_hNumOfHits_All_TF_VTX;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_All_TF_SiBarrel = new TH1D(
+      "m_hNumOfHits_All_TF_SiBarrel",
+      "m_hNumOfHits_All_TF_SiBarrel;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_All_TF_MPGDBarrel = new TH1D(
+      "m_hNumOfHits_All_TF_MPGDBarrel",
+      "m_hNumOfHits_All_TF_MPGDBarrel;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_All_TF_TOFBarrel = new TH1D(
+      "m_hNumOfHits_All_TF_ROFBarrel",
+      "m_hNumOfHits_All_TF_ROFBarrel;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_All_TF_SiEndCapF = new TH1D(
+      "m_hNumOfHits_All_TF_SiEndCapF",
+      "m_hNumOfHits_All_TF_SiEndCapF;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_All_TF_MPGDEndCapF = new TH1D(
+      "m_hNumOfHits_All_TF_MPGDEndCapF",
+      "m_hNumOfHits_All_TF_MPGDEndCapF;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_All_TF_TOFEndCapF = new TH1D(
+      "m_hNumOfHits_All_TF_TOFEndCapF",
+      "m_hNumOfHits_All_TF_TOFEndCapF;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_All_TF_SiEndCapB = new TH1D(
+      "m_hNumOfHits_All_TF_SiEndCapB",
+      "m_hNumOfHits_All_TF_SiEndCapB;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_All_TF_MPGDEndCapB = new TH1D(
+      "m_hNumOfHits_All_TF_MPGDEndCapB",
+      "m_hNumOfHits_All_TF_MPGDEndCapB;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_All_TF_TOFEndCapB = new TH1D(
+      "m_hNumOfHits_All_TF_TOFEndCapB",
+      "m_hNumOfHits_All_TF_TOFEndCapB;num of hits;count",
+      100, 0, 100
+   );
+
+   m_hNumOfHits_Phys_TF_AllDet = new TH1D(
+      "m_hNumOfHits_Phys_TF_AllDet",
+      "m_hNumOfHits_Phys_TF_AllDet;num of hits;count",
+      1000, 0, 1000
+   );
+   m_hNumOfHits_Phys_TF_VTX = new TH1D(
+      "m_hNumOfHits_Phys_TF_VTX",
+      "m_hNumOfHits_Phys_TF_VTX;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_Phys_TF_SiBarrel = new TH1D(
+      "m_hNumOfHits_Phys_TF_SiBarrel",
+      "m_hNumOfHits_Phys_TF_SiBarrel;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_Phys_TF_MPGDBarrel = new TH1D(
+      "m_hNumOfHits_Phys_TF_MPGDBarrel",
+      "m_hNumOfHits_Phys_TF_MPGDBarrel;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_Phys_TF_TOFBarrel = new TH1D(
+      "m_hNumOfHits_Phys_TF_ROFBarrel",
+      "m_hNumOfHits_Phys_TF_ROFBarrel;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_Phys_TF_SiEndCapF = new TH1D(
+      "m_hNumOfHits_Phys_TF_SiEndCapF",
+      "m_hNumOfHits_Phys_TF_SiEndCapF;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_Phys_TF_MPGDEndCapF = new TH1D(
+      "m_hNumOfHits_Phys_TF_MPGDEndCapF",
+      "m_hNumOfHits_Phys_TF_MPGDEndCapF;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_Phys_TF_TOFEndCapF = new TH1D(
+      "m_hNumOfHits_Phys_TF_TOFEndCapF",
+      "m_hNumOfHits_Phys_TF_TOFEndCapF;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_Phys_TF_SiEndCapB = new TH1D(
+      "m_hNumOfHits_Phys_TF_SiEndCapB",
+      "m_hNumOfHits_Phys_TF_SiEndCapB;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_Phys_TF_MPGDEndCapB = new TH1D(
+      "m_hNumOfHits_Phys_TF_MPGDEndCapB",
+      "m_hNumOfHits_Phys_TF_MPGDEndCapB;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_Phys_TF_TOFEndCapB = new TH1D(
+      "m_hNumOfHits_Phys_TF_TOFEndCapB",
+      "m_hNumOfHits_Phys_TF_TOFEndCapB;num of hits;count",
+      100, 0, 100
+   );
+
+   m_hNumOfHits_BKG_TF_AllDet = new TH1D(
+      "m_hNumOfHits_BKG_TF_AllDet",
+      "m_hNumOfHits_BKG_TF_AllDet;num of hits;count",
+      1000, 0, 1000
+   );
+   m_hNumOfHits_BKG_TF_VTX = new TH1D(
+      "m_hNumOfHits_BKG_TF_VTX",
+      "m_hNumOfHits_BKG_TF_VTX;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_BKG_TF_SiBarrel = new TH1D(
+      "m_hNumOfHits_BKG_TF_SiBarrel",
+      "m_hNumOfHits_BKG_TF_SiBarrel;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_BKG_TF_MPGDBarrel = new TH1D(
+      "m_hNumOfHits_BKG_TF_MPGDBarrel",
+      "m_hNumOfHits_BKG_TF_MPGDBarrel;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_BKG_TF_TOFBarrel = new TH1D(
+      "m_hNumOfHits_BKG_TF_TOFBarrel",
+      "m_hNumOfHits_BKG_TF_TOFBarrel;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_BKG_TF_SiEndCapF = new TH1D(
+      "m_hNumOfHits_BKG_TF_SiEndCapF",
+      "m_hNumOfHits_BKG_TF_SiEndCapF;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_BKG_TF_MPGDEndCapF = new TH1D(
+      "m_hNumOfHits_BKG_TF_MPGDEndCapF",
+      "m_hNumOfHits_BKG_TF_MPGDEndCapF;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_BKG_TF_TOFEndCapF = new TH1D(
+      "m_hNumOfHits_BKG_TF_TOFEndCapF",
+      "m_hNumOfHits_BKG_TF_TOFEndCapF;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_BKG_TF_SiEndCapB = new TH1D(
+      "m_hNumOfHits_BKG_TF_SiEndCapB",
+      "m_hNumOfHits_BKG_TF_SiEndCapB;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_BKG_TF_MPGDEndCapB = new TH1D(
+      "m_hNumOfHits_BKG_TF_MPGDEndCapB",
+      "m_hNumOfHits_BKG_TF_MPGDEndCapB;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_BKG_TF_TOFEndCapB = new TH1D(
+      "m_hNumOfHits_BKG_TF_TOFEndCapB",
+      "m_hNumOfHits_BKG_TF_TOFEndCapB;num of hits;count",
+      100, 0, 100
+   );
+
+
+   m_hNumOfHits_All_PhysTS_AllDet = new TH1D(
+      "m_hNumOfHits_All_PhysTS_AllDet",
+      "m_hNumOfHits_All_PhysTS_AllDet;num of hits;count",
+      1000, 0, 1000
+   );
+   m_hNumOfHits_All_PhysTS_VTX = new TH1D(
+      "m_hNumOfHits_All_PhysTS_VTX",
+      "m_hNumOfHits_All_PhysTS_VTX;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_All_PhysTS_SiBarrel = new TH1D(
+      "m_hNumOfHits_All_PhysTS_SiBarrel",
+      "m_hNumOfHits_All_PhysTS_SiBarrel;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_All_PhysTS_MPGDBarrel = new TH1D(
+      "m_hNumOfHits_All_PhysTS_MPGDBarrel",
+      "m_hNumOfHits_All_PhysTS_MPGDBarrel;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_All_PhysTS_TOFBarrel = new TH1D(
+      "m_hNumOfHits_All_PhysTS_ROFBarrel",
+      "m_hNumOfHits_All_PhysTS_ROFBarrel;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_All_PhysTS_SiEndCapF = new TH1D(
+      "m_hNumOfHits_All_PhysTS_SiEndCapF",
+      "m_hNumOfHits_All_PhysTS_SiEndCapF;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_All_PhysTS_MPGDEndCapF = new TH1D(
+      "m_hNumOfHits_All_PhysTS_MPGDEndCapF",
+      "m_hNumOfHits_All_PhysTS_MPGDEndCapF;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_All_PhysTS_TOFEndCapF = new TH1D(
+      "m_hNumOfHits_All_PhysTS_TOFEndCapF",
+      "m_hNumOfHits_All_PhysTS_TOFEndCapF;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_All_PhysTS_SiEndCapB = new TH1D(
+      "m_hNumOfHits_All_PhysTS_SiEndCapB",
+      "m_hNumOfHits_All_PhysTS_SiEndCapB;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_All_PhysTS_MPGDEndCapB = new TH1D(
+      "m_hNumOfHits_All_PhysTS_MPGDEndCapB",
+      "m_hNumOfHits_All_PhysTS_MPGDEndCapB;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_All_PhysTS_TOFEndCapB = new TH1D(
+      "m_hNumOfHits_All_PhysTS_TOFEndCapB",
+      "m_hNumOfHits_All_PhysTS_TOFEndCapB;num of hits;count",
+      100, 0, 100
+   );
+
+   m_hNumOfHits_Phys_PhysTS_AllDet = new TH1D(
+      "m_hNumOfHits_Phys_PhysTS_AllDet",
+      "m_hNumOfHits_Phys_PhysTS_AllDet;num of hits;count",
+      1000, 0, 1000
+   );
+   m_hNumOfHits_Phys_PhysTS_VTX = new TH1D(
+      "m_hNumOfHits_Phys_PhysTS_VTX",
+      "m_hNumOfHits_Phys_PhysTS_VTX;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_Phys_PhysTS_SiBarrel = new TH1D(
+      "m_hNumOfHits_Phys_PhysTS_SiBarrel",
+      "m_hNumOfHits_Phys_PhysTS_SiBarrel;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_Phys_PhysTS_MPGDBarrel = new TH1D(
+      "m_hNumOfHits_Phys_PhysTS_MPGDBarrel",
+      "m_hNumOfHits_Phys_PhysTS_MPGDBarrel;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_Phys_PhysTS_TOFBarrel = new TH1D(
+      "m_hNumOfHits_Phys_PhysTS_TOFBarrel",
+      "m_hNumOfHits_Phys_PhysTS_TOFBarrel;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_Phys_PhysTS_SiEndCapF = new TH1D(
+      "m_hNumOfHits_Phys_PhysTS_SiEndCapF",
+      "m_hNumOfHits_Phys_PhysTS_SiEndCapF;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_Phys_PhysTS_MPGDEndCapF = new TH1D(
+      "m_hNumOfHits_Phys_PhysTS_MPGDEndCapF",
+      "m_hNumOfHits_Phys_PhysTS_MPGDEndCapF;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_Phys_PhysTS_TOFEndCapF = new TH1D(
+      "m_hNumOfHits_Phys_PhysTS_TOFEndCapF",
+      "m_hNumOfHits_Phys_PhysTS_TOFEndCapF;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_Phys_PhysTS_SiEndCapB = new TH1D(
+      "m_hNumOfHits_Phys_PhysTS_SiEndCapB",
+      "m_hNumOfHits_Phys_PhysTS_SiEndCapB;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_Phys_PhysTS_MPGDEndCapB = new TH1D(
+      "m_hNumOfHits_Phys_PhysTS_MPGDEndCapB",
+      "m_hNumOfHits_Phys_PhysTS_MPGDEndCapB;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_Phys_PhysTS_TOFEndCapB = new TH1D(
+      "m_hNumOfHits_Phys_PhysTS_TOFEndCapB",
+      "m_hNumOfHits_Phys_PhysTS_TOFEndCapB;num of hits;count",
+      100, 0, 100
+   );
+
+   m_hNumOfHits_BKG_PhysTS_AllDet = new TH1D(
+      "m_hNumOfHits_BKG_PhysTS_AllDet",
+      "m_hNumOfHits_BKG_PhysTS_AllDet;num of hits;count",
+      1000, 0, 1000
+   );
+   m_hNumOfHits_BKG_PhysTS_VTX = new TH1D(
+      "m_hNumOfHits_BKG_PhysTS_VTX",
+      "m_hNumOfHits_BKG_PhysTS_VTX;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_BKG_PhysTS_SiBarrel = new TH1D(
+      "m_hNumOfHits_BKG_PhysTS_SiBarrel",
+      "m_hNumOfHits_BKG_PhysTS_SiBarrel;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_BKG_PhysTS_MPGDBarrel = new TH1D(
+      "m_hNumOfHits_BKG_PhysTS_MPGDBarrel",
+      "m_hNumOfHits_BKG_PhysTS_MPGDBarrel;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_BKG_PhysTS_TOFBarrel = new TH1D(
+      "m_hNumOfHits_BKG_PhysTS_TOFBarrel",
+      "m_hNumOfHits_BKG_PhysTS_TOFBarrel;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_BKG_PhysTS_SiEndCapF = new TH1D(
+      "m_hNumOfHits_BKG_PhysTS_SiEndCapF",
+      "m_hNumOfHits_BKG_PhysTS_SiEndCapF;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_BKG_PhysTS_MPGDEndCapF = new TH1D(
+      "m_hNumOfHits_BKG_PhysTS_MPGDEndCapF",
+      "m_hNumOfHits_BKG_PhysTS_MPGDEndCapF;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_BKG_PhysTS_TOFEndCapF = new TH1D(
+      "m_hNumOfHits_BKG_PhysTS_TOFEndCapF",
+      "m_hNumOfHits_BKG_PhysTS_TOFEndCapF;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_BKG_PhysTS_SiEndCapB = new TH1D(
+      "m_hNumOfHits_BKG_PhysTS_SiEndCapB",
+      "m_hNumOfHits_BKG_PhysTS_SiEndCapB;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_BKG_PhysTS_MPGDEndCapB = new TH1D(
+      "m_hNumOfHits_BKG_PhysTS_MPGDEndCapB",
+      "m_hNumOfHits_BKG_PhysTS_MPGDEndCapB;num of hits;count",
+      100, 0, 100
+   );
+   m_hNumOfHits_BKG_PhysTS_TOFEndCapB = new TH1D(
+      "m_hNumOfHits_BKG_PhysTS_TOFEndCapB",
+      "m_hNumOfHits_BKG_PhysTS_TOFEndCapB;num of hits;count",
+      100, 0, 100
    );
 
 
@@ -450,7 +1759,10 @@ void checkSimInput::HistInit(){
       m_hDetectorHitsPosiXY[i]->SetLineColor(m_myHistColors[i]);
    }
 
-
+   for (int i = 0; i < 9; ++i) {
+      m_hOrigHitTimeBaseVertex->GetXaxis()->SetBinLabel(i + 1, m_TrigDetHitNames[i].Data());
+      m_hCalibHitTimeBaseVertex->GetXaxis()->SetBinLabel(i + 1, m_TrigDetHitNames[i].Data());
+   }
 
    m_hEventDisplayZXY_Det = new TH3D(
       "m_hEventDisplayZXY_Det",
@@ -467,6 +1779,222 @@ void checkSimInput::HistInit(){
    //    "Event Display; z [mm]; x [mm]; y [mm]",
    //    100, -10000, 10000, 100, -2500, 2500, 100, -2500, 2500
    // );
+
+   m_hMCParticleCreationType = new TH1D(
+      "m_hMCParticleCreationType",
+      "m_hMCParticleCreationType; MC creation Type; count",
+      8000, 0., 8000.
+   );
+
+   m_hCreateTimeDist_Phys = new TH1D(
+      "m_hCreateTimeDist_Phys",
+      "m_hCreateTimeDist_Phys; hitTime [ns]; count",
+      2000, 0., 2000.
+   );
+   
+   m_hCreateTimeDist_Sinc = new TH1D(
+      "m_hCreateTimeDist_Sinc",
+      "m_hCreateTimeDist_Sinc; hitTime [ns]; count",
+      2000, 0., 2000.
+   );
+   m_hCreateTimeDist_eBrems = new TH1D(
+      "m_hCreateTimeDist_eBrems",
+      "m_hCreateTimeDist_eBrems; hitTime [ns]; count",
+      2000, 0., 2000.
+   );
+   m_hCreateTimeDist_eToshec = new TH1D(
+      "m_hCreateTimeDist_eToshec",
+      "m_hCreateTimeDist_eToshec; hitTime [ns]; count",
+      2000, 0., 2000.
+   );
+   m_hCreateTimeDist_eClone = new TH1D(
+      "m_hCreateTimeDist_eClone",
+      "m_hCreateTimeDist_eClone; hitTime [ns]; count",
+      2000, 0., 2000.
+   );
+   m_hCreateTimeDist_eBeamGas = new TH1D(
+      "m_hCreateTimeDist_eBeamGas",
+      "m_hCreateTimeDist_eBeamGas; hitTime [ns]; count",
+      2000, 0., 2000.
+   );
+
+   m_hCreateTimeDist_Phys_FirstP = new TH1D(
+      "m_hCreateTimeDist_Phys_FirstP",
+      "m_hCreateTimeDist_Phys_FirstP; hitTime [ns]; count",
+      3000, 0., 3000.
+   );
+
+
+   // ====================================================================
+   m_hSourceNumOfDist_Phys = new TH1D(
+      "m_hSourceNumOfDist_Phys",
+      "m_hSourceNumOfDist_Phys; number of hits; count",
+      100, 0., 100
+   );
+   m_hSourceNumOfDist_Sinc = new TH1D(
+      "m_hSourceNumOfDist_Sinc",
+      "m_hSourceNumOfDist_Sinc; number of hits; count",
+      100, 0., 100
+   );
+   m_hSourceNumOfDist_eBrems = new TH1D(
+      "m_hSourceNumOfDist_eBrems",
+      "m_hSourceNumOfDist_eBrems; number of hits; count",
+      100, 0., 100
+   );
+   m_hSourceNumOfDist_eToshec = new TH1D(
+      "m_hSourceNumOfDist_eToshec",
+      "m_hSourceNumOfDist_eToshec; number of hits; count",
+      100, 0., 100
+   );
+   m_hSourceNumOfDist_eClone = new TH1D(
+      "m_hSourceNumOfDist_eClone",
+      "m_hSourceNumOfDist_eClone; number of hits; count",
+      100, 0., 100
+   );
+   m_hSourceNumOfDist_eBeamGas = new TH1D(
+      "m_hSourceNumOfDist_eBeamGas",
+      "m_hSourceNumOfDist_eBeamGas; number of hits; count",
+      100, 0., 100
+   );
+
+   m_hSourceTimeOfDist_Phys = new TH1D(
+      "m_hSourceTimeOfDist_Phys",
+      "m_hSourceTimeOfDist_Phys; hitTime [ns]; count",
+      3000, -500., 2500.
+   );
+   m_hSourceTimeOfDist_Sinc = new TH1D(
+      "m_hSourceTimeOfDist_Sinc",
+      "m_hSourceTimeOfDist_Sinc; hitTime [ns]; count",
+      3000, -500., 2500.
+   );
+   m_hSourceTimeOfDist_eBrems = new TH1D(
+      "m_hSourceTimeOfDist_eBrems",
+      "m_hSourceTimeOfDist_eBrems; hitTime [ns]; count",
+      3000, -500., 2500.
+   );
+   m_hSourceTimeOfDist_eToshec = new TH1D(
+      "m_hSourceTimeOfDist_eToshec",
+      "m_hSourceTimeOfDist_eToshec; hitTime [ns]; count",
+      3000, -500., 2500.
+   );
+   m_hSourceTimeOfDist_eClone = new TH1D(
+      "m_hSourceTimeOfDist_eClone",
+      "m_hSourceTimeOfDist_eClone; hitTime [ns]; count",
+      3000, -500., 2500.
+   );
+   m_hSourceTimeOfDist_eBeamGas = new TH1D(
+      "m_hSourceTimeOfDist_eBeamGas",
+      "m_hSourceTimeOfDist_eBeamGas; hitTime [ns]; count",
+      3000, -500., 2500.
+   );
+   // ====================================================================
+
+
+   m_hIdVsCreateTimeDist_Phys = new TH2D(
+      "m_hIdVsCreateTimeDist_Phys",
+      "m_hIdVsCreateTimeDist_Phys; hitID; hitTime [ns]",
+      10000, 0., 10000., 3000, -500., 2500.
+   );
+   m_hIdVsCreateTimeDist_Phys_Calib = new TH2D(
+      "m_hIdVsCreateTimeDist_Phys_Calib",
+      "m_hIdVsCreateTimeDist_Phys_Calib; hitID; hitTime [ns]",
+      10000, 0., 10000., 3000, -500., 2500.
+   );
+   m_hIdVsCreateTimeDist_Phys_Orig = new TH2D(
+      "m_hIdVsCreateTimeDist_Phys_Orig",
+      "m_hIdVsCreateTimeDist_Phys_Orig; hitID; hitTime [ns]",
+      10000, 0., 10000., 3000, -500., 2500.
+   );
+
+   m_hMCPFistHitTime = new TH1D(
+      "m_hMCPFistHitTime",
+      "m_hMCPFistHitTime; hitTime [ns]; count",
+      3000, -500., 2500.
+   );
+   
+   m_hBTOFTimeVsR_MCP_v = new TH2D(
+      "m_hBTOFTimeVsR_MCP_v",
+      "m_hBTOFTimeVsR_MCP_v; hitTime [ns]; hitR [mm]",
+      3000, -500., 2500., 250, 0., 2500.
+   );
+   m_hBTOFTimeVsR_MCP_e = new TH2D(
+      "m_hBTOFTimeVsR_MCP_e",
+      "m_hBTOFTimeVsR_MCP_e; hitTime [ns]; hitR [mm]",
+      3000, -500., 2500., 250, 0., 2500.
+   );
+
+   m_hMCPTimeVsR_v = new TH2D(
+      "m_hMCPTimeVsR_v",
+      "m_hMCPTimeVsR_v; hitTime [ns]; hitR [mm]",
+      3000, -500., 2500., 250, 0., 2500.
+   );
+   m_hMCPTimeVsR_e = new TH2D(
+      "m_hMCPTimeVsR_e",
+      "m_hMCPTimeVsR_e; hitTime [ns]; hitR [mm]",
+      3000, -500., 2500., 250, 0., 2500.
+   );
+
+   m_hBeamEleEnergy = new TH1D(
+      "m_hBeamEleEnergy",
+      "m_hBeamEleEnergy; #it{E} [GeV]; count",
+      40, 0, 200
+   );
+   m_hBeamProtonEnergy = new TH1D(
+      "m_hBeamProtonEnergy",
+      "m_hBeamProtonEnergy; #it{E} [GeV]; count",
+      100, 0, 500
+   );
+
+   m_hNumOfOrigEle = new TH1D(
+      "m_hNumOfOrigEle",
+      "m_hNumOfOrigEle; number of electrons; count",
+      10, 0, 10
+   );
+   m_hOrigEleSourceZ = new TH1D(
+      "m_hOrigEleSourceZ",
+      "m_hOrigEleSourceZ; z [mm]; count",
+      2000, -100, 100
+   );
+
+   m_hOrigElePt = new TH1D(
+      "m_hOrigElePt",
+      "m_hOrigElePt; #it{p}_{T} [GeV/c]; count",
+      1000, 0, 50
+   );
+   m_hOrigEleEnergy = new TH1D(
+      "m_hOrigEleEnergy",
+      "m_hOrigEleEnergy; #it{E} [GeV]; count",
+      1000, 0, 50
+   );
+   m_hOrigEleScatterAngle = new TH1D(
+      "m_hOrigEleScatterAngle",
+      "m_hOrigEleScatterAngle; #it{#theta} [rad]; count",
+      180, 0., 180.
+   );
+   m_hOrigEleScatterEta = new TH1D(
+      "m_hOrigEleScatterEta",
+      "m_hOrigEleScatterEta; #it{#eta}; count",
+      200, -10, 10
+   );
+
+   m_hAllScatterEnergy = new TH1D(
+      "m_hAllScatterEnergy",
+      "m_hAllScatterEnergy; #it{E} [GeV]; count",
+      100, 0, 1000
+   );
+
+   m_hAllScatteredPTopologyDist = new TH1D(
+      "m_hAllScatteredPTopologyDist",
+      "m_hAllScatteredPTopologyDist; #it{#theta} [rad]; count",
+      180, 0., 180.
+   );
+
+   m_PhysHitRVsTime = new TProfile(
+      "m_PhysHitRVsTime",
+      "m_PhysHitRVsTime; r [mm]; time [ns]",
+      1000, 0, 1000
+   );
+
 }
 
 
@@ -487,8 +2015,13 @@ void checkSimInput::WriteHists(){
    m_hRelativeHitTimeForVtxBarrel->Write();
    m_hRelativeHitTimeForVtxBarrelWideRange->Write();
 
+   m_hOrigHitTimeBaseVertex->Write();
+   m_hCalibHitTimeBaseVertex->Write();
+
    m_hRVsHitTimeInclusive->Write();
    m_hZVsHitTimeInclusive->Write();
+
+   m_hMCPGeneStatusVsHitTime->Write();
 
    m_hCalibratedTimeWindow90Percent->Write();
 
@@ -496,6 +2029,78 @@ void checkSimInput::WriteHists(){
 
    m_hHitMinTimeDetComp->Write();
    m_hTimeDispersionDetComp->Write();
+
+   m_hNumOfHits_All_TF_AllDet->Write();
+   m_hNumOfHits_All_TF_VTX->Write();
+   m_hNumOfHits_All_TF_SiBarrel->Write();
+   m_hNumOfHits_All_TF_MPGDBarrel->Write();
+   m_hNumOfHits_All_TF_TOFBarrel->Write();
+   m_hNumOfHits_All_TF_SiEndCapF->Write();
+   m_hNumOfHits_All_TF_MPGDEndCapF->Write();
+   m_hNumOfHits_All_TF_TOFEndCapF->Write();
+   m_hNumOfHits_All_TF_SiEndCapB->Write();
+   m_hNumOfHits_All_TF_MPGDEndCapB->Write();
+   m_hNumOfHits_All_TF_TOFEndCapB->Write();
+
+   m_hNumOfHits_Phys_TF_AllDet->Write();
+   m_hNumOfHits_Phys_TF_VTX->Write();
+   m_hNumOfHits_Phys_TF_SiBarrel->Write();
+   m_hNumOfHits_Phys_TF_MPGDBarrel->Write();
+   m_hNumOfHits_Phys_TF_TOFBarrel->Write();
+   m_hNumOfHits_Phys_TF_SiEndCapF->Write();
+   m_hNumOfHits_Phys_TF_MPGDEndCapF->Write();
+   m_hNumOfHits_Phys_TF_TOFEndCapF->Write();
+   m_hNumOfHits_Phys_TF_SiEndCapB->Write();
+   m_hNumOfHits_Phys_TF_MPGDEndCapB->Write();
+   m_hNumOfHits_Phys_TF_TOFEndCapB->Write();
+
+   m_hNumOfHits_BKG_TF_AllDet->Write();
+   m_hNumOfHits_BKG_TF_VTX->Write();
+   m_hNumOfHits_BKG_TF_SiBarrel->Write();
+   m_hNumOfHits_BKG_TF_MPGDBarrel->Write();
+   m_hNumOfHits_BKG_TF_TOFBarrel->Write();
+   m_hNumOfHits_BKG_TF_SiEndCapF->Write();
+   m_hNumOfHits_BKG_TF_MPGDEndCapF->Write();
+   m_hNumOfHits_BKG_TF_TOFEndCapF->Write();
+   m_hNumOfHits_BKG_TF_SiEndCapB->Write();
+   m_hNumOfHits_BKG_TF_MPGDEndCapB->Write();
+   m_hNumOfHits_BKG_TF_TOFEndCapB->Write();
+
+   m_hNumOfHits_All_PhysTS_AllDet->Write();
+   m_hNumOfHits_All_PhysTS_VTX->Write();
+   m_hNumOfHits_All_PhysTS_SiBarrel->Write();
+   m_hNumOfHits_All_PhysTS_MPGDBarrel->Write();
+   m_hNumOfHits_All_PhysTS_TOFBarrel->Write();
+   m_hNumOfHits_All_PhysTS_SiEndCapF->Write();
+   m_hNumOfHits_All_PhysTS_MPGDEndCapF->Write();
+   m_hNumOfHits_All_PhysTS_TOFEndCapF->Write();
+   m_hNumOfHits_All_PhysTS_SiEndCapB->Write();
+   m_hNumOfHits_All_PhysTS_MPGDEndCapB->Write();
+   m_hNumOfHits_All_PhysTS_TOFEndCapB->Write();
+
+   m_hNumOfHits_Phys_PhysTS_AllDet->Write();
+   m_hNumOfHits_Phys_PhysTS_VTX->Write();
+   m_hNumOfHits_Phys_PhysTS_SiBarrel->Write();
+   m_hNumOfHits_Phys_PhysTS_MPGDBarrel->Write();
+   m_hNumOfHits_Phys_PhysTS_TOFBarrel->Write();
+   m_hNumOfHits_Phys_PhysTS_SiEndCapF->Write();
+   m_hNumOfHits_Phys_PhysTS_MPGDEndCapF->Write();
+   m_hNumOfHits_Phys_PhysTS_TOFEndCapF->Write();
+   m_hNumOfHits_Phys_PhysTS_SiEndCapB->Write();
+   m_hNumOfHits_Phys_PhysTS_MPGDEndCapB->Write();
+   m_hNumOfHits_Phys_PhysTS_TOFEndCapB->Write();
+
+   m_hNumOfHits_BKG_PhysTS_AllDet->Write();
+   m_hNumOfHits_BKG_PhysTS_VTX->Write();
+   m_hNumOfHits_BKG_PhysTS_SiBarrel->Write();
+   m_hNumOfHits_BKG_PhysTS_MPGDBarrel->Write();
+   m_hNumOfHits_BKG_PhysTS_TOFBarrel->Write();
+   m_hNumOfHits_BKG_PhysTS_SiEndCapF->Write();
+   m_hNumOfHits_BKG_PhysTS_MPGDEndCapF->Write();
+   m_hNumOfHits_BKG_PhysTS_TOFEndCapF->Write();
+   m_hNumOfHits_BKG_PhysTS_SiEndCapB->Write();
+   m_hNumOfHits_BKG_PhysTS_MPGDEndCapB->Write();
+   m_hNumOfHits_BKG_PhysTS_TOFEndCapB->Write();
 
    for (int i = 0; i < 17; ++i) {
       m_hMinTimeHit[i]->Write();
@@ -521,6 +2126,56 @@ void checkSimInput::WriteHists(){
    m_hEventDisplayZXY_Det->Write();
    // m_hEventDisplay_SimP->Write();
    m_lEventDisplay_SimP->Write();
+
+   m_hMCParticleCreationType->Write();
+
+   m_hCreateTimeDist_Phys->Write();
+   m_hCreateTimeDist_Sinc->Write();
+   m_hCreateTimeDist_eBrems->Write();
+   m_hCreateTimeDist_eToshec->Write();
+   m_hCreateTimeDist_eClone->Write();
+   m_hCreateTimeDist_eBeamGas->Write();
+
+   m_hCreateTimeDist_Phys_FirstP->Write();
+   m_hIdVsCreateTimeDist_Phys->Write();
+   m_hIdVsCreateTimeDist_Phys_Calib->Write();
+   m_hIdVsCreateTimeDist_Phys_Orig->Write();
+
+   m_hSourceNumOfDist_Phys->Write();
+   m_hSourceNumOfDist_Sinc->Write();
+   m_hSourceNumOfDist_eBrems->Write();
+   m_hSourceNumOfDist_eToshec->Write();
+   m_hSourceNumOfDist_eClone->Write();
+   m_hSourceNumOfDist_eBeamGas->Write();
+
+   m_hSourceTimeOfDist_Phys->Write();
+   m_hSourceTimeOfDist_Sinc->Write();
+   m_hSourceTimeOfDist_eBrems->Write();
+   m_hSourceTimeOfDist_eToshec->Write();
+   m_hSourceTimeOfDist_eClone->Write();
+   m_hSourceTimeOfDist_eBeamGas->Write();
+
+   m_hMCPFistHitTime->Write();
+
+   m_hMCPTimeVsR_v->Write();
+   m_hMCPTimeVsR_e->Write();
+   m_hBTOFTimeVsR_MCP_v->Write();
+   m_hBTOFTimeVsR_MCP_e->Write();
+
+   m_hBeamEleEnergy->Write();
+   m_hBeamProtonEnergy->Write();
+
+   m_hNumOfOrigEle->Write();
+   m_hOrigEleSourceZ->Write();
+   m_hOrigElePt->Write();
+   m_hOrigEleEnergy->Write();
+   m_hOrigEleScatterAngle->Write();
+   m_hOrigEleScatterEta->Write();
+
+   m_hAllScatterEnergy->Write();
+   m_hAllScatteredPTopologyDist->Write();
+
+   m_PhysHitRVsTime->Write();
 
    oFile->Close();
 }

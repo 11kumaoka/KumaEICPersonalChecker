@@ -14,8 +14,8 @@
 // Additionally, you need to modify Algorithm.cc and compile.C
 // KumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKuma 
 
-#ifndef checkSimInput_h
-#define checkSimInput_h
+#ifndef triggerCombineChecker_h
+#define triggerCombineChecker_h
 
 // Header file for the classes stored in the TTree if any.
 #include <vector>
@@ -33,7 +33,6 @@
 #include <TH2.h>
 #include <TH3.h>
 #include <TF1.h>
-#include <TProfile.h>
 #include <TProfile2D.h>
 #include <TPolyLine3D.h>
 
@@ -41,7 +40,7 @@
 
 
 
-class checkSimInput {
+class triggerCombineChecker {
 public :
    TTree          *fChain;   //!pointer to the analyzed TTree or TChain
    Int_t           fCurrent; //!current Tree number in a TChain
@@ -57,8 +56,8 @@ public :
    // TBranch        *b_x;   //! example x
 
 
-   checkSimInput(TTree *tree=0, std::string iFileName="", std::string oFileName="");
-   virtual ~checkSimInput();
+   triggerCombineChecker(TTree *tree=0, std::string iFileName="", std::string oFileName="");
+   virtual ~triggerCombineChecker();
    virtual Int_t    Cut(Long64_t entry);
    virtual Int_t    GetEntry(Long64_t entry);
    virtual Long64_t LoadTree(Long64_t entry);
@@ -74,100 +73,100 @@ public :
 
 
    // Fixed size dimensions of array or collections stored in the TTree if any.
-   static constexpr Int_t kMaxB0ECalHits = 999999;
-   static constexpr Int_t kMax_B0ECalHits_contributions = 999999;
-   static constexpr Int_t kMaxB0ECalHitsContributions = 999999;
-   static constexpr Int_t kMax_B0ECalHitsContributions_particle = 999999;
-   static constexpr Int_t kMaxB0TrackerHits = 999999;
-   static constexpr Int_t kMax_B0TrackerHits_particle = 999999;
-   static constexpr Int_t kMaxBackwardMPGDEndcapHits = 999999;
-   static constexpr Int_t kMax_BackwardMPGDEndcapHits_particle = 999999;
-   static constexpr Int_t kMaxDIRCBarHits = 999999;
-   static constexpr Int_t kMax_DIRCBarHits_particle = 999999;
-   static constexpr Int_t kMaxDRICHHits = 999999;
-   static constexpr Int_t kMax_DRICHHits_particle = 999999;
-   static constexpr Int_t kMaxEcalBarrelImagingHits = 999999;
-   static constexpr Int_t kMax_EcalBarrelImagingHits_contributions = 999999;
-   static constexpr Int_t kMaxEcalBarrelImagingHitsContributions = 999999;
-   static constexpr Int_t kMax_EcalBarrelImagingHitsContributions_particle = 999999;
-   static constexpr Int_t kMaxEcalBarrelScFiHits = 999999;
-   static constexpr Int_t kMax_EcalBarrelScFiHits_contributions = 999999;
-   static constexpr Int_t kMaxEcalBarrelScFiHitsContributions = 999999;
-   static constexpr Int_t kMax_EcalBarrelScFiHitsContributions_particle = 999999;
-   static constexpr Int_t kMaxEcalEndcapNHits = 999999;
-   static constexpr Int_t kMax_EcalEndcapNHits_contributions = 999999;
-   static constexpr Int_t kMaxEcalEndcapNHitsContributions = 999999;
-   static constexpr Int_t kMax_EcalEndcapNHitsContributions_particle = 999999;
-   static constexpr Int_t kMaxEcalEndcapPHits = 999999;
-   static constexpr Int_t kMax_EcalEndcapPHits_contributions = 999999;
-   static constexpr Int_t kMaxEcalEndcapPHitsContributions = 999999;
-   static constexpr Int_t kMax_EcalEndcapPHitsContributions_particle = 999999;
-   static constexpr Int_t kMaxEcalEndcapPInsertHits = 999999;
-   static constexpr Int_t kMax_EcalEndcapPInsertHits_contributions = 999999;
-   static constexpr Int_t kMaxEcalEndcapPInsertHitsContributions = 999999;
-   static constexpr Int_t kMax_EcalEndcapPInsertHitsContributions_particle = 999999;
-   static constexpr Int_t kMaxEcalFarForwardZDCHits = 999999;
-   static constexpr Int_t kMax_EcalFarForwardZDCHits_contributions = 999999;
-   static constexpr Int_t kMaxEcalFarForwardZDCHitsContributions = 999999;
-   static constexpr Int_t kMax_EcalFarForwardZDCHitsContributions_particle = 999999;
-   static constexpr Int_t kMaxEcalLumiSpecHits = 999999;
-   static constexpr Int_t kMax_EcalLumiSpecHits_contributions = 999999;
-   static constexpr Int_t kMaxEcalLumiSpecHitsContributions = 999999;
-   static constexpr Int_t kMax_EcalLumiSpecHitsContributions_particle = 999999;
-   static constexpr Int_t kMaxEventHeader = 999999;
-   static constexpr Int_t kMaxForwardMPGDEndcapHits = 999999;
-   static constexpr Int_t kMax_ForwardMPGDEndcapHits_particle = 999999;
-   static constexpr Int_t kMaxForwardOffMTrackerHits = 999999;
-   static constexpr Int_t kMax_ForwardOffMTrackerHits_particle = 999999;
-   static constexpr Int_t kMaxForwardRomanPotHits = 999999;
-   static constexpr Int_t kMax_ForwardRomanPotHits_particle = 999999;
-   static constexpr Int_t kMaxHcalBarrelHits = 999999;
-   static constexpr Int_t kMax_HcalBarrelHits_contributions = 999999;
-   static constexpr Int_t kMaxHcalBarrelHitsContributions = 999999;
-   static constexpr Int_t kMax_HcalBarrelHitsContributions_particle = 999999;
-   static constexpr Int_t kMaxHcalEndcapNHits = 999999;
-   static constexpr Int_t kMax_HcalEndcapNHits_contributions = 999999;
-   static constexpr Int_t kMaxHcalEndcapNHitsContributions = 999999;
-   static constexpr Int_t kMax_HcalEndcapNHitsContributions_particle = 999999;
-   static constexpr Int_t kMaxHcalEndcapPInsertHits = 999999;
-   static constexpr Int_t kMax_HcalEndcapPInsertHits_contributions = 999999;
-   static constexpr Int_t kMaxHcalEndcapPInsertHitsContributions = 999999;
-   static constexpr Int_t kMax_HcalEndcapPInsertHitsContributions_particle = 999999;
-   static constexpr Int_t kMaxHcalFarForwardZDCHits = 999999;
-   static constexpr Int_t kMax_HcalFarForwardZDCHits_contributions = 999999;
-   static constexpr Int_t kMaxHcalFarForwardZDCHitsContributions = 999999;
-   static constexpr Int_t kMax_HcalFarForwardZDCHitsContributions_particle = 999999;
-   static constexpr Int_t kMaxLFHCALHits = 999999;
-   static constexpr Int_t kMax_LFHCALHits_contributions = 999999;
-   static constexpr Int_t kMaxLFHCALHitsContributions = 999999;
-   static constexpr Int_t kMax_LFHCALHitsContributions_particle = 999999;
-   static constexpr Int_t kMaxLumiDirectPCALHits = 999999;
-   static constexpr Int_t kMax_LumiDirectPCALHits_contributions = 999999;
-   static constexpr Int_t kMaxLumiDirectPCALHitsContributions = 999999;
-   static constexpr Int_t kMax_LumiDirectPCALHitsContributions_particle = 999999;
-   static constexpr Int_t kMaxLumiSpecTrackerHits = 999999;
-   static constexpr Int_t kMax_LumiSpecTrackerHits_particle = 999999;
-   static constexpr Int_t kMaxMCParticles = 999999;
-   static constexpr Int_t kMax_MCParticles_parents = 999999;
-   static constexpr Int_t kMax_MCParticles_daughters = 999999;
-   static constexpr Int_t kMaxMPGDBarrelHits = 999999;
-   static constexpr Int_t kMax_MPGDBarrelHits_particle = 999999;
-   static constexpr Int_t kMaxOuterMPGDBarrelHits = 999999;
-   static constexpr Int_t kMax_OuterMPGDBarrelHits_particle = 999999;
-   static constexpr Int_t kMaxRICHEndcapNHits = 999999;
-   static constexpr Int_t kMax_RICHEndcapNHits_particle = 999999;
-   static constexpr Int_t kMaxSiBarrelHits = 999999;
-   static constexpr Int_t kMax_SiBarrelHits_particle = 999999;
-   static constexpr Int_t kMaxTaggerTrackerHits = 999999;
-   static constexpr Int_t kMax_TaggerTrackerHits_particle = 999999;
-   static constexpr Int_t kMaxTOFBarrelHits = 999999;
-   static constexpr Int_t kMax_TOFBarrelHits_particle = 999999;
-   static constexpr Int_t kMaxTOFEndcapHits = 999999;
-   static constexpr Int_t kMax_TOFEndcapHits_particle = 999999;
-   static constexpr Int_t kMaxTrackerEndcapHits = 999999;
-   static constexpr Int_t kMax_TrackerEndcapHits_particle = 999999;
-   static constexpr Int_t kMaxVertexBarrelHits = 999999;
-   static constexpr Int_t kMax_VertexBarrelHits_particle = 999999;
+   static constexpr Int_t kMaxB0ECalHits = 112;
+   static constexpr Int_t kMax_B0ECalHits_contributions = 463403;
+   static constexpr Int_t kMaxB0ECalHitsContributions = 463403;
+   static constexpr Int_t kMax_B0ECalHitsContributions_particle = 463403;
+   static constexpr Int_t kMaxB0TrackerHits = 159;
+   static constexpr Int_t kMax_B0TrackerHits_particle = 159;
+   static constexpr Int_t kMaxBackwardMPGDEndcapHits = 22;
+   static constexpr Int_t kMax_BackwardMPGDEndcapHits_particle = 22;
+   static constexpr Int_t kMaxDIRCBarHits = 19710;
+   static constexpr Int_t kMax_DIRCBarHits_particle = 19710;
+   static constexpr Int_t kMaxDRICHHits = 5875;
+   static constexpr Int_t kMax_DRICHHits_particle = 5875;
+   static constexpr Int_t kMaxEcalBarrelImagingHits = 710;
+   static constexpr Int_t kMax_EcalBarrelImagingHits_contributions = 1966;
+   static constexpr Int_t kMaxEcalBarrelImagingHitsContributions = 1966;
+   static constexpr Int_t kMax_EcalBarrelImagingHitsContributions_particle = 1966;
+   static constexpr Int_t kMaxEcalBarrelScFiHits = 8542;
+   static constexpr Int_t kMax_EcalBarrelScFiHits_contributions = 36686;
+   static constexpr Int_t kMaxEcalBarrelScFiHitsContributions = 36686;
+   static constexpr Int_t kMax_EcalBarrelScFiHitsContributions_particle = 36686;
+   static constexpr Int_t kMaxEcalEndcapNHits = 826;
+   static constexpr Int_t kMax_EcalEndcapNHits_contributions = 52285;
+   static constexpr Int_t kMaxEcalEndcapNHitsContributions = 52285;
+   static constexpr Int_t kMax_EcalEndcapNHitsContributions_particle = 52285;
+   static constexpr Int_t kMaxEcalEndcapPHits = 2849;
+   static constexpr Int_t kMax_EcalEndcapPHits_contributions = 79211;
+   static constexpr Int_t kMaxEcalEndcapPHitsContributions = 79211;
+   static constexpr Int_t kMax_EcalEndcapPHitsContributions_particle = 79211;
+   static constexpr Int_t kMaxEcalEndcapPInsertHits = 478;
+   static constexpr Int_t kMax_EcalEndcapPInsertHits_contributions = 110181;
+   static constexpr Int_t kMaxEcalEndcapPInsertHitsContributions = 110181;
+   static constexpr Int_t kMax_EcalEndcapPInsertHitsContributions_particle = 110181;
+   static constexpr Int_t kMaxEcalFarForwardZDCHits = 362;
+   static constexpr Int_t kMax_EcalFarForwardZDCHits_contributions = 78485;
+   static constexpr Int_t kMaxEcalFarForwardZDCHitsContributions = 78485;
+   static constexpr Int_t kMax_EcalFarForwardZDCHitsContributions_particle = 78485;
+   static constexpr Int_t kMaxEcalLumiSpecHits = 1;
+   static constexpr Int_t kMax_EcalLumiSpecHits_contributions = 1;
+   static constexpr Int_t kMaxEcalLumiSpecHitsContributions = 1;
+   static constexpr Int_t kMax_EcalLumiSpecHitsContributions_particle = 1;
+   static constexpr Int_t kMaxEventHeader = 1;
+   static constexpr Int_t kMaxForwardMPGDEndcapHits = 131;
+   static constexpr Int_t kMax_ForwardMPGDEndcapHits_particle = 131;
+   static constexpr Int_t kMaxForwardOffMTrackerHits = 29;
+   static constexpr Int_t kMax_ForwardOffMTrackerHits_particle = 29;
+   static constexpr Int_t kMaxForwardRomanPotHits = 157;
+   static constexpr Int_t kMax_ForwardRomanPotHits_particle = 157;
+   static constexpr Int_t kMaxHcalBarrelHits = 264;
+   static constexpr Int_t kMax_HcalBarrelHits_contributions = 1602;
+   static constexpr Int_t kMaxHcalBarrelHitsContributions = 1602;
+   static constexpr Int_t kMax_HcalBarrelHitsContributions_particle = 1602;
+   static constexpr Int_t kMaxHcalEndcapNHits = 261;
+   static constexpr Int_t kMax_HcalEndcapNHits_contributions = 990;
+   static constexpr Int_t kMaxHcalEndcapNHitsContributions = 990;
+   static constexpr Int_t kMax_HcalEndcapNHitsContributions_particle = 990;
+   static constexpr Int_t kMaxHcalEndcapPInsertHits = 1758;
+   static constexpr Int_t kMax_HcalEndcapPInsertHits_contributions = 7357;
+   static constexpr Int_t kMaxHcalEndcapPInsertHitsContributions = 7357;
+   static constexpr Int_t kMax_HcalEndcapPInsertHitsContributions_particle = 7357;
+   static constexpr Int_t kMaxHcalFarForwardZDCHits = 3755;
+   static constexpr Int_t kMax_HcalFarForwardZDCHits_contributions = 30635;
+   static constexpr Int_t kMaxHcalFarForwardZDCHitsContributions = 30635;
+   static constexpr Int_t kMax_HcalFarForwardZDCHitsContributions_particle = 30635;
+   static constexpr Int_t kMaxLFHCALHits = 2401;
+   static constexpr Int_t kMax_LFHCALHits_contributions = 6344;
+   static constexpr Int_t kMaxLFHCALHitsContributions = 6344;
+   static constexpr Int_t kMax_LFHCALHitsContributions_particle = 6344;
+   static constexpr Int_t kMaxLumiDirectPCALHits = 1;
+   static constexpr Int_t kMax_LumiDirectPCALHits_contributions = 1;
+   static constexpr Int_t kMaxLumiDirectPCALHitsContributions = 1;
+   static constexpr Int_t kMax_LumiDirectPCALHitsContributions_particle = 1;
+   static constexpr Int_t kMaxLumiSpecTrackerHits = 1;
+   static constexpr Int_t kMax_LumiSpecTrackerHits_particle = 1;
+   static constexpr Int_t kMaxMCParticles = 7979;
+   static constexpr Int_t kMax_MCParticles_parents = 7983;
+   static constexpr Int_t kMax_MCParticles_daughters = 7983;
+   static constexpr Int_t kMaxMPGDBarrelHits = 49;
+   static constexpr Int_t kMax_MPGDBarrelHits_particle = 49;
+   static constexpr Int_t kMaxOuterMPGDBarrelHits = 46;
+   static constexpr Int_t kMax_OuterMPGDBarrelHits_particle = 46;
+   static constexpr Int_t kMaxRICHEndcapNHits = 1;
+   static constexpr Int_t kMax_RICHEndcapNHits_particle = 1;
+   static constexpr Int_t kMaxSiBarrelHits = 26;
+   static constexpr Int_t kMax_SiBarrelHits_particle = 26;
+   static constexpr Int_t kMaxTaggerTrackerHits = 1;
+   static constexpr Int_t kMax_TaggerTrackerHits_particle = 1;
+   static constexpr Int_t kMaxTOFBarrelHits = 97;
+   static constexpr Int_t kMax_TOFBarrelHits_particle = 97;
+   static constexpr Int_t kMaxTOFEndcapHits = 96;
+   static constexpr Int_t kMax_TOFEndcapHits_particle = 96;
+   static constexpr Int_t kMaxTrackerEndcapHits = 238;
+   static constexpr Int_t kMax_TrackerEndcapHits_particle = 238;
+   static constexpr Int_t kMaxVertexBarrelHits = 96;
+   static constexpr Int_t kMax_VertexBarrelHits_particle = 96;
 
    // Declaration of leaf types
    Int_t           B0ECalHits_;
@@ -1376,14 +1375,6 @@ public :
    std::vector<Int_t> m_vTargetEvents;
    Int_t m_pubEvNum = 0;
 
-   Int_t largestNumOfHits = 0;
-   Int_t largestNumOfHitsEventId = 0;
-   Int_t smallestNumOfHits = 9999;
-   Int_t smallestNumOfHitsEventId = 0;
-
-   Double_t m_timeFrame = 2000.0; // ns
-   Double_t m_timeSlice = 20.0; // ns
-
    TString m_simTrackHitNames[17] = \
    {
       "B0TrackerHits",       "BackwardMPGDEndcapHits", "DIRCBarHits",\
@@ -1394,11 +1385,6 @@ public :
       "TrackerEndcapHits",   "VertexBarrelHits"
    };
 
-   TString m_TrigDetHitNames[9] = \
-   {
-      "MPGD_IBarrel", "MPGD_OBarrel", "MPGD_Back", "MPGD_Front", "TOFBarrel",\
-      "TOFEndcap", "VertexBarrel", "SiBarrel", "SiEndcap"
-   };
 
    std::vector<SimTrackerHitKuma > m_SimTrackerHitsKuma; // a "kuma example" of a member valuable
    // black, blue, red, green, violet, orange, light blue, light green, dark violet, brown, very light blue, 
@@ -1407,192 +1393,42 @@ public :
 
    // "BackwardMPGDEndcapHits - TrackerEndcapHits", "TOFBarrelHits - SiBarrelHits", "ForwardMPGDEndcapHits - TrackerEndcapHits"
    std::vector<std::vector<Int_t> > m_TriggerSets = {{1, 15}, {11, 12}, {5, 15}};
-
+   Int_t m_bDetMinHitsRequire[17] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+   bool m_bDetTriggerLists[17] = {false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false};
+   bool m_bCombinTriggerLists[3] = {false, false, false};
+   bool m_bTrigger = false;
 
    // histograms as output
-   TH1D* m_hEventNumberForEachDetector; // event number
-   TH1D* m_hEventNumberRatioForEachDetector; // event number
-   TH2D* m_hDetHitsCombination; // each subdetector hits combination
-   TH2D* m_hDetHitsEffCombination; // each subdetector hits combination
-   TH2D* m_hRelativeHitTimeForVtxBarrel; // relative hit time for vertex barrel
-   TH2D* m_hRelativeHitTimeForVtxBarrelWideRange; // relative hit time for vertex barrel
+   TH2D* m_hEventDisplayZR_Det;
+   TH2D* m_hEventDisplayZR_Det_TF;
 
-   TH2D* m_hRVsHitTimeInclusive; // include all detector hit time vs. hit position
-   TH2D* m_hZVsHitTimeInclusive; // include all detector hit time vs. hit position
-
-   TH2D* m_hMCPGeneStatusVsHitTime; // include all detector hit time vs. hit position
-
-   TProfile2D* m_hXYVsHitTime_DIRCBar; // include all detector hit time vs. hit position
-
-
-   TH1D* m_hMinTimeHit[17]; // minimum time of hits in each subdetector
-   TH1D* m_hTimeDispersionOfAnEvent[17]; // despersoin of hits in each subdetector
-   TH2D* m_hRVsHitTime[17]; // hit time vs. hit position
-   TH2D* m_hHitTimeVsDepE[17]; // hit energy deposit vs. hit position
-   TH1D* m_hMinusMinTimeDist[17]; // hit time vs. hit position
-   TH1D* m_hMinusMinTimeDistWideRange[17]; // hit time vs. hit position
-
-   TH1D* m_hCalibratedTimeHit[17]; // calibrated time of hits in each subdetector
-   TH1D* m_hCalibratedTimeWindow90Percent; // calibrated time window 90% of hits in each subdetector
-   TH1D* m_hNumOfHitsInTimeWindow[17];
-
-   TH1D* m_hEnergyDist[17]; // despersoin of hits in each subdetector
-   TH1D* m_hEnergyDispersionOfAnEvent[17]; // despersoin of hits in each subdetector
-
-   TH2D* m_hHitMinTimeDetComp; // minimum time of hits in each subdetector compared to the first hit in the event
-   TH2D* m_hTimeDispersionDetComp; // despersoin of hits in each subdetector compared to the first hit in the event
-
-   TH3D* m_hDetectorHitsPosiZXY[17]; // position of hits in each subdetector
-   TH2D* m_hDetectorHitsPosiZR[17]; // position of hits in each subdetector
-   TH2D* m_hDetectorHitsPosiXY[17]; // position of hits in each subdetector
-
-
-   TH3D* m_hEventDisplayZXY_Det; // position of hits in each subdetector
-   TH2D* m_hEventDisplayZR_Det; // position of hits in each subdetector
-   // TH3F* m_hEventDisplay_SimP; // position of hits in each subdetector
-   TPolyLine3D *m_lEventDisplay_SimP = new TPolyLine3D(2);
-
-   TH1D* m_hNumOfHits_All_TF_AllDet;
-   TH1D* m_hNumOfHits_All_TF_VTX;
-   TH1D* m_hNumOfHits_All_TF_SiBarrel;
-   TH1D* m_hNumOfHits_All_TF_MPGDBarrel;
-   TH1D* m_hNumOfHits_All_TF_TOFBarrel;
-   TH1D* m_hNumOfHits_All_TF_SiEndCapF;
-   TH1D* m_hNumOfHits_All_TF_MPGDEndCapF;
-   TH1D* m_hNumOfHits_All_TF_TOFEndCapF;
-   TH1D* m_hNumOfHits_All_TF_SiEndCapB;
-   TH1D* m_hNumOfHits_All_TF_MPGDEndCapB;
-   TH1D* m_hNumOfHits_All_TF_TOFEndCapB;
-
-   TH1D* m_hNumOfHits_Phys_TF_AllDet;
-   TH1D* m_hNumOfHits_Phys_TF_VTX;
-   TH1D* m_hNumOfHits_Phys_TF_SiBarrel;
-   TH1D* m_hNumOfHits_Phys_TF_MPGDBarrel;
-   TH1D* m_hNumOfHits_Phys_TF_TOFBarrel;
-   TH1D* m_hNumOfHits_Phys_TF_SiEndCapF;
-   TH1D* m_hNumOfHits_Phys_TF_MPGDEndCapF;
-   TH1D* m_hNumOfHits_Phys_TF_TOFEndCapF;
-   TH1D* m_hNumOfHits_Phys_TF_SiEndCapB;
-   TH1D* m_hNumOfHits_Phys_TF_MPGDEndCapB;
-   TH1D* m_hNumOfHits_Phys_TF_TOFEndCapB;
-
-   TH1D* m_hNumOfHits_BKG_TF_AllDet;
-   TH1D* m_hNumOfHits_BKG_TF_VTX;
-   TH1D* m_hNumOfHits_BKG_TF_SiBarrel;
-   TH1D* m_hNumOfHits_BKG_TF_MPGDBarrel;
-   TH1D* m_hNumOfHits_BKG_TF_TOFBarrel;
-   TH1D* m_hNumOfHits_BKG_TF_SiEndCapF;
-   TH1D* m_hNumOfHits_BKG_TF_MPGDEndCapF;
-   TH1D* m_hNumOfHits_BKG_TF_TOFEndCapF;
-   TH1D* m_hNumOfHits_BKG_TF_SiEndCapB;
-   TH1D* m_hNumOfHits_BKG_TF_MPGDEndCapB;
-   TH1D* m_hNumOfHits_BKG_TF_TOFEndCapB;
-
-   TH1D* m_hNumOfHits_All_PhysTS_AllDet;
-   TH1D* m_hNumOfHits_All_PhysTS_VTX;
-   TH1D* m_hNumOfHits_All_PhysTS_SiBarrel;
-   TH1D* m_hNumOfHits_All_PhysTS_MPGDBarrel;
-   TH1D* m_hNumOfHits_All_PhysTS_TOFBarrel;
-   TH1D* m_hNumOfHits_All_PhysTS_SiEndCapF;
-   TH1D* m_hNumOfHits_All_PhysTS_MPGDEndCapF;
-   TH1D* m_hNumOfHits_All_PhysTS_TOFEndCapF;
-   TH1D* m_hNumOfHits_All_PhysTS_SiEndCapB;
-   TH1D* m_hNumOfHits_All_PhysTS_MPGDEndCapB;
-   TH1D* m_hNumOfHits_All_PhysTS_TOFEndCapB;
-
-   TH1D* m_hNumOfHits_Phys_PhysTS_AllDet;
-   TH1D* m_hNumOfHits_Phys_PhysTS_VTX;
-   TH1D* m_hNumOfHits_Phys_PhysTS_SiBarrel;
-   TH1D* m_hNumOfHits_Phys_PhysTS_MPGDBarrel;
-   TH1D* m_hNumOfHits_Phys_PhysTS_TOFBarrel;
-   TH1D* m_hNumOfHits_Phys_PhysTS_SiEndCapF;
-   TH1D* m_hNumOfHits_Phys_PhysTS_MPGDEndCapF;
-   TH1D* m_hNumOfHits_Phys_PhysTS_TOFEndCapF;
-   TH1D* m_hNumOfHits_Phys_PhysTS_SiEndCapB;
-   TH1D* m_hNumOfHits_Phys_PhysTS_MPGDEndCapB;
-   TH1D* m_hNumOfHits_Phys_PhysTS_TOFEndCapB;
-
-   TH1D* m_hNumOfHits_BKG_PhysTS_AllDet;
-   TH1D* m_hNumOfHits_BKG_PhysTS_VTX;
-   TH1D* m_hNumOfHits_BKG_PhysTS_SiBarrel;
-   TH1D* m_hNumOfHits_BKG_PhysTS_MPGDBarrel;
-   TH1D* m_hNumOfHits_BKG_PhysTS_TOFBarrel;
-   TH1D* m_hNumOfHits_BKG_PhysTS_SiEndCapF;
-   TH1D* m_hNumOfHits_BKG_PhysTS_MPGDEndCapF;
-   TH1D* m_hNumOfHits_BKG_PhysTS_TOFEndCapF;
-   TH1D* m_hNumOfHits_BKG_PhysTS_SiEndCapB;
-   TH1D* m_hNumOfHits_BKG_PhysTS_MPGDEndCapB;
-   TH1D* m_hNumOfHits_BKG_PhysTS_TOFEndCapB;
-
-   TH1D* m_hMCParticleCreationType;
-   TH1D* m_hCreateTimeDist_Phys;
-   TH1D* m_hCreateTimeDist_Sinc;
-   TH1D* m_hCreateTimeDist_eBrems;
-   TH1D* m_hCreateTimeDist_eToshec;
-   TH1D* m_hCreateTimeDist_eClone;
-   TH1D* m_hCreateTimeDist_eBeamGas;
-
-   TH1D* m_hSourceNumOfDist_Phys;
-   TH1D* m_hSourceNumOfDist_Sinc;
-   TH1D* m_hSourceNumOfDist_eBrems;
-   TH1D* m_hSourceNumOfDist_eToshec;
-   TH1D* m_hSourceNumOfDist_eClone;
-   TH1D* m_hSourceNumOfDist_eBeamGas;
-
-   TH1D* m_hSourceTimeOfDist_Phys;
-   TH1D* m_hSourceTimeOfDist_Sinc;
-   TH1D* m_hSourceTimeOfDist_eBrems;
-   TH1D* m_hSourceTimeOfDist_eToshec;
-   TH1D* m_hSourceTimeOfDist_eClone;
-   TH1D* m_hSourceTimeOfDist_eBeamGas;
-
-
-   TH1D* m_hCreateTimeDist_Phys_FirstP;
-   TH2D* m_hIdVsCreateTimeDist_Phys;
-   TH2D* m_hIdVsCreateTimeDist_Phys_Calib;
-   TH2D* m_hIdVsCreateTimeDist_Phys_Orig;
-
-   TH1D* m_hMCPFistHitTime;
-   TH2D* m_hMCPTimeVsR_v;
-   TH2D* m_hMCPTimeVsR_e;
-   TH2D* m_hBTOFTimeVsR_MCP_v;
-   TH2D* m_hBTOFTimeVsR_MCP_e;
-
-   // MPGD_IBarrel, MPGD_OBarrel, MPGD_Back, MPGD_Front, TOFBarrel, TOFEndcap, VertexBarrel, SiBarrel, SiEndcap
-   TH2D* m_hOrigHitTimeBaseVertex;
-   TH2D* m_hCalibHitTimeBaseVertex;
-
-   TH1D* m_hBeamEleEnergy;
-   TH1D* m_hBeamProtonEnergy;
-
-   TH1D* m_hNumOfOrigEle;
-   TH1D* m_hOrigEleSourceZ;
-   TH1D* m_hOrigElePt;
-   TH1D* m_hOrigEleEnergy;
-   TH1D* m_hOrigEleScatterAngle;
-   TH1D* m_hOrigEleScatterEta;
-
-   TH1D* m_hAllScatterEnergy;
-
-   TH1D* m_hAllScatteredPTopologyDist;
-
-   TProfile* m_PhysHitRVsTime; // profile of hit time vs. hit position;
-
-
+   TH1D* m_hTriggerCounts; // histogram for trigger types
+   
    // == member functions == // own function
    void HistInit();
    void ResetValuesForEachEvent();
    void WriteHists();
-
    
-   Double_t HistCriticalValueEstimation(Double_t confidence, TH1D* hist);
+   float m_timewindow = 2000.0; // width of time split for a time frame [ns]
+   float m_timeslice_width = 20.0; // width of time split for a time frame [ns]
 
-   void MCParticleTimeEstimation();
-   void DetectorHitTimeCheck();
-   void DetectorNumOfHits();
+   float m_timeResolution_Silicon = 2000.0; // time resolution [ns]
+   float m_timeResolution_MPGD = 10.0; // time resolution [ns]
+   float m_timeResolution_TOF = 0.030; // time resolution [ns]
+
+   void HitTimeCalibration(Double_t timeOffSet);
+   Double_t MakeRandomTimeOffset(Int_t randomSeed);
+   Double_t FindFirstPhysParticle();
+
+   Double_t HistCriticalValueEstimation(Double_t confidence, TH1D* hist);
+   
+   void FillEventDisplay(Double_t sTime, Double_t eTime, bool bTF);
 
    inline Double_t HitTimeCalibrationByR(Double_t hitTime, Double_t hitR){
-      return hitTime - 0.003*hitR;
+      // return hitTime - 0.003*hitR;
+
+      Double_t calibTime = (hitR - 91.7)/279;
+      return hitTime - calibTime;
    };
 
    // == inherited functions == //
@@ -1601,58 +1437,8 @@ public :
 
 #endif
 
-// #ifndef checkSimInput_cxx
-// #define checkSimInput_cxx
-
-// <HitPosition>
-// TH1F *hHitPosiR_SiBarrel_WOUnfold = new TH1F("hHitPosiR_SiBarrel_WOUnfold", "hHitPosiR_SiBarrel_WOUnfold;#it{r} [mm];count", 800, 0, 800);
-//  events->Draw("sqrt(SiBarrelTrackerRecHits.position.x*SiBarrelTrackerRecHits.position.x + SiBarrelTrackerRecHits.position.y*SiBarrelTrackerRecHits.position.y + SiBarrelTrackerRecHits.position.z*SiBarrelTrackerRecHits.position.z)>>hHitPosiR_SiBarrel_WOUnfold", "SiBarrelTrackerRecHits.time < 2000")
-// TH1F *hHitPosiR_SiBarrel_WOUnfold = (TH1F*)gDirectory->Get("hHitPosiR_SiBarrel_WOUnfold");
-
-// TH1F *hHitPosiR_SiBarrel_WUnfold = new TH1F("hHitPosiR_SiBarrel_WUnfold", "hHitPosiR_SiBarrel_WUnfold;#it{r} [mm];count", 800, 0, 800);
-// events->Draw("sqrt(SiBarrelTrackerRecHits.position.x*SiBarrelTrackerRecHits.position.x + SiBarrelTrackerRecHits.position.y*SiBarrelTrackerRecHits.position.y + SiBarrelTrackerRecHits.position.z*SiBarrelTrackerRecHits.position.z)>>hHitPosiR_SiBarrel_WUnfold")
-// TH1F *hHitPosiR_SiBarrel_WUnfold = (TH1F*)gDirectory->Get("hHitPosiR_SiBarrel_WUnfold");
-
-// <Time>
-// TH1F *hHitTime_SiBarrel_WOUnfold = new TH1F("hHitTime_SiBarrel_WOUnfold", "hHitTime_SiBarrel_WOUnfold;#it{t} [ns];count", 2000, 0, 2000);
-//  events->Draw("SiBarrelTrackerRecHits.time>>hHitTime_SiBarrel_WOUnfold", "SiBarrelTrackerRecHits.time < 2000")
-// TH1F *hHitTime_SiBarrel_WOUnfold = (TH1F*)gDirectory->Get("hHitTime_SiBarrel_WOUnfold");
-
-// TH1F *hHitTime_SiBarrel_WUnfold = new TH1F("hHitTime_SiBarrel_WUnfold", "hHitTime_SiBarrel_WUnfold;#it{t} [ns];count", 2000, 0, 2000);
-//  events->Draw("SiBarrelTrackerRecHits.time>>hHitTime_SiBarrel_WUnfold")
-// TH1F *hHitTime_SiBarrel_WUnfold = (TH1F*)gDirectory->Get("hHitTime_SiBarrel_WUnfold");
-
-// TH1F *hHitTime_SiBarrel_Eff = (TH1F *) hHitTime_SiBarrel_WUnfold->Clone("hHitTime_SiBarrel_Eff")
-// hHitTime_SiBarrel_Eff->Divide(hHitTime_SiBarrel_Eff, hHitTime_SiBarrel_WOUnfold, 1.0, 1.0, "b")
+// #ifndef triggerCombineChecker_cxx
+// #define triggerCombineChecker_cxx
 
 
-// <DepEnergy>
-// TH1F *hHitDepE_SiBarrel_WOUnfold = new TH1F("hHitDepE_SiBarrel_WOUnfold", "hHitDepE_SiBarrel_WOUnfold;depE [GeV];count", 100, 0, 0.001);
-// events->Draw("SiBarrelTrackerRecHits.edep>>hHitDepE_SiBarrel_WOUnfold", "SiBarrelTrackerRecHits.time < 2000")
-// TH1F *hHitDepE_SiBarrel_WOUnfold = (TH1F*)gDirectory->Get("hHitDepE_SiBarrel_WOUnfold");
-
-// TH1F *hHitDepE_SiBarrel_WUnfold = new TH1F("hHitDepE_SiBarrel_WUnfold", "hHitDepE_SiBarrel_WUnfold;depE [GeV];count", 100, 0, 0.001);
-// events->Draw("SiBarrelTrackerRecHits.edep>>hHitDepE_SiBarrel_WUnfold")
-// TH1F *hHitDepE_SiBarrel_WUnfold = (TH1F*)gDirectory->Get("hHitDepE_SiBarrel_WUnfold");
-
-// TH1F *hHitDepE_SiBarrel_Eff = (TH1F *) hHitDepE_SiBarrel_WUnfold->Clone("hHitDepE_SiBarrel_Eff")
-// hHitDepE_SiBarrel_Eff->Divide(hHitDepE_SiBarrel_Eff, hHitDepE_SiBarrel_WOUnfold, 1.0, 1.0, "b")
-
-
-
-// <Time>
-// TH1F *hHitTime_VertexBarrel_WOUnfold = new TH1F("hHitTime_VertexBarrel_WOUnfold", "hHitTime_VertexBarrel_WOUnfold;#it{t} [ns];count", 2000, 0, 2000);
-// events->Draw("SiBarrelVertexRecHits.time>>hHitTime_VertexBarrel_WOUnfold", "SiBarrelVertexRecHits.time < 2000")
-// TH1F *hHitTime_VertexBarrel_WOUnfold = (TH1F*)gDirectory->Get("hHitTime_VertexBarrel_WOUnfold");
-
-// TH1F *hHitTime_VertexBarrel_WUnfold = new TH1F("hHitTime_VertexBarrel_WUnfold", "hHitTime_VertexBarrel_WUnfold;#it{t} [ns];count", 2000, 0, 2000);
-// events->Draw("SiBarrelVertexRecHits.time>>hHitTime_VertexBarrel_WUnfold")
-// TH1F *hHitTime_VertexBarrel_WUnfold = (TH1F*)gDirectory->Get("hHitTime_VertexBarrel_WUnfold");
-
-// TH1F *hHitTime_VertexBarrel_Eff = (TH1F *) hHitTime_VertexBarrel_WUnfold->Clone("hHitTime_VertexBarrel_Eff")
-// hHitTime_VertexBarrel_Eff->Divide(hHitTime_VertexBarrel_Eff, hHitTime_VertexBarrel_WOUnfold, 1.0, 1.0, "b")
-
-
-
-
-// #endif // #ifdef checkSimInput_cxx
+// #endif // #ifdef triggerCombineChecker_cxx

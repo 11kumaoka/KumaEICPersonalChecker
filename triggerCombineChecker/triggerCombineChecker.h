@@ -1397,11 +1397,11 @@ public :
    bool m_bDetTriggerLists[17] = {false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false};
    bool m_bCombinTriggerLists[3] = {false, false, false};
 
-   float m_timewindow = 2000.0; // width of time split for a time frame [ns]
-   float m_timeslice_width = 20.0; // width of time split for a time frame [ns]
+
 
    // histograms as output
    TH2D* m_hEventDisplayZR_Det;
+   TH2D* m_hEventDisplayZR_Det_TF;
 
    TH1D* m_hTriggerTypesPhysCounts; // histogram for trigger types
    TH1D* m_hTriggerTypesPhysRatio; // histogram for trigger types
@@ -1423,14 +1423,24 @@ public :
    void ResetValuesForEachEvent();
    void WriteHists();
    
+   float m_timewindow = 2000.0; // width of time split for a time frame [ns]
+   float m_timeslice_width = 20.0; // width of time split for a time frame [ns]
+
+   void HitTimeCalibration(Double_t timeOffSet);
+   Double_t MakeRandomTimeOffset(Int_t randomSeed);
+   Double_t FindFirstPhysParticle();
+
    Double_t HistCriticalValueEstimation(Double_t confidence, TH1D* hist);
    
-   void FillEventDisplay(Double_t sTime, Double_t eTime);
+   void FillEventDisplay(Double_t sTime, Double_t eTime, bool bTF);
    void TriggerHistFill(TH1D* hTrigCount, TH1D* hTrigRatio, bool m_bCombinTriggerLists[3]);
    void WOTrig23HistFill(Double_t numOfEvents_EachDet_TrigRegion[4][18], Double_t numOfEvents_TrigRegion[4]);
 
    inline Double_t HitTimeCalibrationByR(Double_t hitTime, Double_t hitR){
-      return hitTime - 0.003*hitR;
+      // return hitTime - 0.003*hitR;
+
+      Double_t calibTime = (hitR - 91.7)/279;
+      return hitTime - calibTime;
    };
 
    // == inherited functions == //

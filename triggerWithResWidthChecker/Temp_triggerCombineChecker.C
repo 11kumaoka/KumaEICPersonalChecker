@@ -6,8 +6,6 @@
 // #define triggerCombineChecker_cxx
 #include "triggerCombineChecker.h"
 
-#include <random>
-
 #include <TStyle.h>
 #include <TCanvas.h>
 
@@ -51,29 +49,19 @@ void triggerCombineChecker::Loop()
    Double_t numOfEvents_EachDet_TrigRegion[4][18] = {};
    Double_t numOfEvents_TrigRegion[4] = {}; // 0: Phys W/O Trig23, 1: Phys W Trig23, 2: Noise W/O Trig23, 3: Noise W Trig23
    
-   size_t numOfPhys = 0;
    size_t numOfNoise = 0;
-
-   bool bRandTimeOffset = false;
 
    bool bTargetEV = false;
    // m_vTargetEvents = {75, 97, 131, 173, 199, 203, 203, 223, 235, 246, 277, 281, 328, 363, 369};
-   // Case1: 42, 222, 245, 301, 774, 790, 795, 851
-   // Case2: 43, 59, 122, 140, 164, 174, 181, 236, 372, 387, 455, 491, 497, 515, 523, 658, 709, 724, 732, 785, 800, 845, 926, 931, 951, 982
-   // Case3: 
-
-   // 140
-   m_vTargetEvents = {236};
-   // m_vTargetEvents = {106};
+   // m_vTargetEvents = {75, 92, 97, 103, 106, 131, 173, 199, 203, 203, 223, 235, 246, 277, 281, 328, 363, 369};
+   m_vTargetEvents = {};
    
 
-   Int_t numOfEventLoops = 1000;
+   Int_t numOfEventLoops = 10000;
    // Int_t numOfEventLoops = 10;
    // Int_t numOfEventLoops = nentries;
    if(bTargetEV) numOfEventLoops = m_vTargetEvents.size();
 
-   // float m_timewindow = 2000.0; // width of time split for a time frame [ns]
-   // float m_timeslice_width = 20.0; // width of time split for a time frame [ns]
    Double_t m_timeWindows[17] = {148.05, 14.25, 13.05, 55.25, 1.25, 0, 0, 0, 15.65, 10.85, 0, 27.55, 16.25, 15.25, 0, 18.45, 14.25};
   
 
@@ -95,61 +83,151 @@ void triggerCombineChecker::Loop()
 
       m_SimTrackerHitsKuma = LoadInputHits();
 
+
       // == s ==  Hit Time calibration ========================================
       for(int iDet = 0; iDet < 17; ++iDet) m_SimTrackerHitsKuma.at(iDet).sortByTime();
 
-      Double_t randomOffsetTime = 0.;
-      if(bRandTimeOffset) randomOffsetTime = MakeRandomTimeOffset(jentry);
+      Int_t minHitTimeDetID = -1;
+      Double_t minHitTime = 9999999.;
+      for(int iDet = 0; iDet < 17; ++iDet){
+         Int_t numberOfHits = m_SimTrackerHitsKuma.at(iDet).getSize();
+         if(numberOfHits == 0) continue;
+         Double_t minTimeOfDet = m_SimTrackerHitsKuma.at(iDet).getTime(0);
+         if(minTimeOfDet < minHitTime){
+            minHitTime = minTimeOfDet;
+            minHitTimeDetID = iDet;
+         }
+      }
 
-      Double_t timeOffSet = randomOffsetTime;
-      HitTimeCalibration(timeOffSet);
+
+      Double_t minTimeHitX = m_SimTrackerHitsKuma.at(minHitTimeDetID).getPosiX(0);
+      Double_t minTimeHitY = m_SimTrackerHitsKuma.at(minHitTimeDetID).getPosiY(0);
+      Double_t minTimeHitZ = m_SimTrackerHitsKuma.at(minHitTimeDetID).getPosiZ(0);
+      Double_t minTimeHitR = TMath::Sqrt(minTimeHitX*minTimeHitX + minTimeHitY*minTimeHitY + minTimeHitZ*minTimeHitZ);
+      // Double_t timeOffSet = HitTimeCalibrationByR(minHitTime, minTimeHitR);
+      Double_t timeOffSet = 0; // ???? ChecKuma
+      for(int iDet = 0; iDet < 17; ++iDet){
+         Int_t numberOfHits = m_SimTrackerHitsKuma.at(iDet).getSize();
+         if(numberOfHits == 0) continue;
+         
+         for (size_t iHit = 0; iHit < numberOfHits; ++iHit) {
+            Double_t hitTime = m_SimTrackerHitsKuma.at(iDet).getTime(iHit);
+
+            Double_t hitX = m_SimTrackerHitsKuma.at(iDet).getPosiX(iHit);
+            Double_t hitY = m_SimTrackerHitsKuma.at(iDet).getPosiY(iHit);
+            Double_t hitZ = m_SimTrackerHitsKuma.at(iDet).getPosiZ(iHit);
+
+            Double_t r = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
+            // if(iDet==16) std::cout << "iDet: " << iDet << ", time: " << hitTime << ", r: " << r << std::endl;
+
+            Double_t calibratedTime = HitTimeCalibrationByR(hitTime, r) - timeOffSet;
+            m_SimTrackerHitsKuma.at(iDet).setTime(iHit, calibratedTime);
+         }
+
+         Double_t minTimeOfDet = m_SimTrackerHitsKuma.at(iDet).getTime(0);
+         if(minTimeOfDet < minHitTime){
+            minHitTime = minTimeOfDet;
+            minHitTimeDetID = iDet;
+         }
+         m_SimTrackerHitsKuma.at(iDet).sortByTime();
+      }
       // == e ==  Hit Time calibration ========================================
       
-      bool bPhysicsEvent = false; // Set the flag for physics event processing
-      Double_t physEventTime = - 999999.;
-      physEventTime = FindFirstPhysParticle();
-      if(bRandTimeOffset) physEventTime += timeOffSet;
-
       bool bAdmitedInterval = false;
       Int_t iTimeSlice = 0;
       float eTime = m_timeslice_width * (iTimeSlice + 1.0);
 
       Int_t startHitPoint[17] = {0};
       bool bLastHit[17] = {};
-      
-      bool bPhysCapture = false; // Flag to check if physics events are missed
+      // Int_t bLastHit[17] = {};
+
+      // == s ==  Physics Time Slice Process (first time slice) ========================================
+      // == s ==  Physics Hit Loop (first time slice) ========================================
+      Int_t physHitsCounts[17] = {0};
+      for(size_t iDet = 0; iDet < 17; ++iDet){
+         Int_t numberOfHits = m_SimTrackerHitsKuma.at(iDet).getSize();
+         for (size_t iHit = startHitPoint[iDet]; iHit < numberOfHits; ++iHit) {            
+            startHitPoint[iDet] = iHit; // Update the start point for the next iteration
+            Double_t time = m_SimTrackerHitsKuma.at(iDet).getTime(iHit);
+            if(time > eTime) break; // Break if the hit time exceeds the current time slice
+            physHitsCounts[iDet]++;
+         }
+
+         if(physHitsCounts[iDet] > m_bDetMinHitsRequire[iDet]) m_bDetTriggerLists[iDet] = true;
+         // std::cout << "iDet: " << iDet << ", physHitsCounts: " << physHitsCounts[iDet] << ", detTrig = " << m_bDetTriggerLists[iDet] << std::endl;
+         // if(startHitPoint[iDet] == numberOfHits - 1) bLastHit[iDet] = true;
+
+         Double_t eHitTime = -1;
+         if(numberOfHits > 0) eHitTime = m_SimTrackerHitsKuma.at(iDet).getTime(startHitPoint[iDet]);
+         if(eHitTime <= eTime && startHitPoint[iDet] == numberOfHits - 1) bLastHit[iDet] = true;
+
+         // if(iDet != 1 && iDet != 5 && iDet != 8  && iDet != 9 && iDet != 12 && iDet != 15) continue;
+         // for (size_t iHit = 0; iHit < numberOfHits; ++iHit) {
+         //    Double_t time = m_SimTrackerHitsKuma.at(iDet).getTime(iHit);
+         //    std::cout << "iDet: " << iDet << ", iHit: " << iHit << ", time: " << time << std::endl;         
+         // }
+      }
+      // == e ==  Physics Hit Loop (first time slice) ========================================
+
+      if(m_bDetTriggerLists[1]  && m_bDetTriggerLists[15]) m_bCombinTriggerLists[0] = true; // Trigger1
+      // if(m_bDetTriggerLists[11] && (m_bDetTriggerLists[8])) m_bCombinTriggerLists[1] = true; // Trigger2
+      if(m_bDetTriggerLists[12] && (m_bDetTriggerLists[8]||m_bDetTriggerLists[9])) m_bCombinTriggerLists[1] = true; // Trigger2
+      if(m_bDetTriggerLists[5]  && m_bDetTriggerLists[15]) m_bCombinTriggerLists[2] = true; // Trigger3
+
+      TriggerHistFill(m_hTriggerTypesPhysCounts, m_hTriggerTypesPhysRatio, m_bCombinTriggerLists);
+
+      if(m_bCombinTriggerLists[0] && !m_bCombinTriggerLists[1] && !m_bCombinTriggerLists[2]){
+         numOfEvents_TrigRegion[0] += 1.0; // Count the number of events in the physics region without Trigger2 and Trigger3
+         for(size_t iDet = 0; iDet < 17; ++iDet){
+            if(!m_bDetTriggerLists[iDet]) continue; // Skip if the detector has no hits
+            numOfEvents_EachDet_TrigRegion[0][iDet] += 1;
+         }
+      }else if(m_bCombinTriggerLists[1] || m_bCombinTriggerLists[2]){
+         numOfEvents_TrigRegion[1] += 1.0; // Count the number of events in the physics region without Trigger2 and Trigger3
+         for(size_t iDet = 0; iDet < 17; ++iDet){            
+            if(!m_bDetTriggerLists[iDet]) continue; // Skip if the detector has no hits
+            numOfEvents_EachDet_TrigRegion[1][iDet] += 1;
+         }
+      }
+      // == e ==  Physics Time Slice Process (first time slice) ========================================
+
+
+      // FillEventDisplay(0., m_timeslice_width);
+
+      for(size_t iDet = 0; iDet < 17; ++iDet) physHitsCounts[iDet] = 0; // Reset the minimum hits requirement for the next event
+      for(size_t iDet = 0; iDet < 17; ++iDet) m_bDetMinHitsRequire[iDet] = false; // Reset the minimum hits requirement for the next event
+      for(size_t iDet = 0; iDet < 3; ++iDet) m_bCombinTriggerLists[iDet] = false; // Reset the combined trigger lists for the next event
+
       bAdmitedInterval = false; // Reset the admission flag for the next time slice
 
-      if(bTargetEV) FillEventDisplay(0., 0., true);
-
-      // iTimeSlice += 1;
+      iTimeSlice += 1;
       eTime = m_timeslice_width * (iTimeSlice + 1.0);
       while (eTime <= m_timewindow){
-         // std::cout << "== s 00 Time slice: " << iTimeSlice << ", eTime: " << eTime << ":: physics event time: " << physEventTime <<  " === "<< std::endl;
-         bPhysicsEvent = false;
-         if(eTime - m_timeslice_width <= physEventTime && physEventTime < eTime){
-            bPhysicsEvent = true; // Check if the time slice is within the physics event time window
-            numOfPhys++;
-         } else numOfNoise++;
 
-         Int_t hitsCountsInTS[17] = {0};
+         Int_t noiseHitsCounts[17] = {0};
          for(size_t iDet = 0; iDet < 17; ++iDet) m_bDetTriggerLists[iDet] = false; // Reset the minimum hits requirement for the next event
          for(size_t iDet = 0; iDet < 3; ++iDet) m_bCombinTriggerLists[iDet] = false; // Reset the combined trigger lists for the next event
 
          for(size_t iDet = 0; iDet < 17; ++iDet){
+            // if(bLastHit[iDet] > 1) continue; // Skip if the detector has no hits left to process
             if(bLastHit[iDet]) continue; // Skip if the detector has no hits left to process
 
             Int_t numberOfHits = m_SimTrackerHitsKuma.at(iDet).getSize();
             for (size_t iHit = startHitPoint[iDet]; iHit < numberOfHits; ++iHit) {
                startHitPoint[iDet] = iHit; // Update the start point for the next iteration
                Double_t time = m_SimTrackerHitsKuma.at(iDet).getTime(iHit);
-               if(time > eTime) break; // Break if the hit time exceeds the current time slice
-               
-               // if(iDet == 1 || iDet == 5 || iDet == 8 || iDet == 9 || iDet == 12 || iDet == 15) std::cout << "iDet: " << iDet << ", iHit: " << iHit << ", time: " << m_SimTrackerHitsKuma.at(iDet).getTime(iHit) << std::endl;
 
-               hitsCountsInTS[iDet]++;
+               // if(iDet == 1 || iDet == 5 || iDet == 8  || iDet == 9 || iDet == 12 || iDet == 15){
+               //    std::cout << "BKG iDet: " << iDet << ", iHit: " << iHit << ", time: " << time << std::endl;
+               // }
+
+               if(time > eTime) break; // Break if the hit time exceeds the current time slice
+               // std::cout << "iDet: " << iDet << ", iHit: " << iHit << ", time: " << m_SimTrackerHitsKuma.at(iDet).getTime(iHit) << std::endl;
+               noiseHitsCounts[iDet]++;
             }
-            if(hitsCountsInTS[iDet] > m_bDetMinHitsRequire[iDet]) m_bDetTriggerLists[iDet] = true;
+            if(noiseHitsCounts[iDet] > m_bDetMinHitsRequire[iDet]) m_bDetTriggerLists[iDet] = true;
+            // if(startHitPoint[iDet] == numberOfHits - 1) bLastHit[iDet] += 1;
+            // if(startHitPoint[iDet] == numberOfHits - 1) bLastHit[iDet] = true;
 
             Double_t eHitTime = -1;
             if(numberOfHits > 0) eHitTime = m_SimTrackerHitsKuma.at(iDet).getTime(startHitPoint[iDet]);
@@ -157,43 +235,25 @@ void triggerCombineChecker::Loop()
 
          }
 
-         // Si_Endcap: 15, MPGD_Endcap_b: 1, MPGD_Endcap_f: 4, TOF_endcap: 13
-         // Si_Barrel: 11, MPGD_Barrel_i: 8, MPGD_Barrel_o: 9, TOF_Barrel: 12
-         if(m_bDetTriggerLists[1]&&m_bDetTriggerLists[13]) m_bCombinTriggerLists[0] = true; // Trigger1
+
+
+         if(m_bDetTriggerLists[1]&&m_bDetTriggerLists[15]) m_bCombinTriggerLists[0] = true; // Trigger1
          if(m_bDetTriggerLists[12]&&(m_bDetTriggerLists[8]||m_bDetTriggerLists[9])) m_bCombinTriggerLists[1] = true; // Trigger2
-         if(m_bDetTriggerLists[4]&&m_bDetTriggerLists[15]) m_bCombinTriggerLists[2] = true; // Trigger3
-         
-         // std::cout << "Trigger lists: trigger[1, 2, 3] = [" << m_bCombinTriggerLists[0]\
-         //    << ", " << m_bCombinTriggerLists[1] << ", " << m_bCombinTriggerLists[2] << "]" << std::endl;
-         // std::cout << "Detector trig list: det[1, 5, 8, 9, 12, 15] = [" << m_bDetTriggerLists[1]\
-         //    << ", " << m_bDetTriggerLists[5] << ", " << m_bDetTriggerLists[8] << ", " << m_bDetTriggerLists[9]\
-         //    << ", " << m_bDetTriggerLists[12] << ", " << m_bDetTriggerLists[15] << "]" << std::endl;
+         // if(m_bDetTriggerLists[12]&&(m_bDetTriggerLists[8])) m_bCombinTriggerLists[1] = true; // Trigger2
+         if(m_bDetTriggerLists[5]&&m_bDetTriggerLists[15]) m_bCombinTriggerLists[2] = true; // Trigger3
 
-         if(bPhysicsEvent){
-            TriggerHistFill(m_hTriggerTypesPhysCounts, m_hTriggerTypesPhysRatio, m_bCombinTriggerLists);
-            if(m_bCombinTriggerLists[0] || m_bCombinTriggerLists[1] || m_bCombinTriggerLists[2])bPhysCapture = true; 
-         }
-         else{
-            if(!bPhysCapture\
-               && (eTime - 2*m_timeslice_width <= physEventTime && physEventTime < eTime - m_timeslice_width)\
-               && (m_bCombinTriggerLists[0] || m_bCombinTriggerLists[1] || m_bCombinTriggerLists[2])){
-               m_hTriggerTypesPhysCounts->SetBinContent(8, m_hTriggerTypesPhysCounts->GetBinContent(8) - 1);
-               m_hTriggerTypesPhysRatio->SetBinContent(8, m_hTriggerTypesPhysRatio->GetBinContent(8) - 1);
-               TriggerHistFill(m_hTriggerTypesPhysCounts, m_hTriggerTypesPhysRatio, m_bCombinTriggerLists);
-               m_vTargetEvents.pop_back();
-            }else{
-               TriggerHistFill(m_hTriggerTypesBKGCounts, m_hTriggerTypesBKGRatio, m_bCombinTriggerLists);
-            }
-         }
+         TriggerHistFill(m_hTriggerTypesBKGCounts, m_hTriggerTypesBKGRatio, m_bCombinTriggerLists);
 
-         // if(!bPhysicsEvent && (m_bCombinTriggerLists[0] || m_bCombinTriggerLists[1] || m_bCombinTriggerLists[2])){
-         //    // m_vTargetEvents.push_back(m_pubEvNum); // Store the event number if it has any of the combined triggers
-         //    FillEventDisplay(eTime - m_timeslice_width, eTime, false);
+         if(m_bCombinTriggerLists[0] || m_bCombinTriggerLists[1] || m_bCombinTriggerLists[2]){
+            m_vTargetEvents.push_back(m_pubEvNum); // Store the event number if it has any of the combined triggers
+            // std::cout << "CHeeeeeeeeeeeeeeeeeeeeeeeeeeecKuma: Event " << m_pubEvNum << " sTime:" << eTime - m_timeslice_width << ", eTime:" << eTime << std::endl;
+            FillEventDisplay(eTime - m_timeslice_width, eTime);
+         }
+         // std::cout << "sTime: " << eTime - m_timeslice_width;
+         // for(size_t iDet = 0; iDet < 17; ++iDet) {
+         //    std::cout << "Detector " << iDet << ", Counts: " << noiseHitsCounts[iDet] << std::endl;
          // }
-         if(bPhysicsEvent && (!m_bCombinTriggerLists[0] && !m_bCombinTriggerLists[1] && !m_bCombinTriggerLists[2])){
-            m_vTargetEvents.push_back(m_pubEvNum);
-            FillEventDisplay(eTime - m_timeslice_width, eTime, false);
-         }
+         // std::cout << std::endl;
 
 
          if(m_bCombinTriggerLists[0] && !m_bCombinTriggerLists[1] && !m_bCombinTriggerLists[2]){
@@ -211,7 +271,8 @@ void triggerCombineChecker::Loop()
          }
 
          iTimeSlice++;
-         eTime = m_timeslice_width * (iTimeSlice + 1.0);         
+         eTime = m_timeslice_width * (iTimeSlice + 1.0);
+         numOfNoise += 1;
       }
       // == s == Internal Interval loop  =======================================
 
@@ -221,10 +282,10 @@ void triggerCombineChecker::Loop()
    } // == end of loop over events
 
 
-   std::cout << "Number of events: " << numOfPhys << ", numOfNoise: " << numOfNoise << std::endl;
-   m_hTriggerTypesPhysCounts->SetBinContent(10, numOfPhys);
-   m_hTriggerTypesPhysRatio->SetBinContent(10, numOfPhys);
-   m_hTriggerTypesPhysRatio->Scale(1. / (1.*numOfPhys));
+   std::cout << "Number of events: " << numOfEvents[17] << ", numOfNoise: " << numOfNoise << std::endl;
+   m_hTriggerTypesPhysCounts->SetBinContent(10, numOfEvents[17]);
+   m_hTriggerTypesPhysRatio->SetBinContent(10, numOfEvents[17]);
+   m_hTriggerTypesPhysRatio->Scale(1. / (1.*numOfEvents[17]));
    m_hTriggerTypesBKGCounts->SetBinContent(10, numOfNoise);
    m_hTriggerTypesBKGRatio->SetBinContent(10, numOfNoise);
    m_hTriggerTypesBKGRatio->Scale(1. / (1.*numOfNoise));
@@ -260,70 +321,19 @@ void triggerCombineChecker::Loop()
 
 }
 
-
-void triggerCombineChecker::HitTimeCalibration(Double_t timeOffSet){
-   for(int iDet = 0; iDet < 17; ++iDet){
-      Int_t numberOfHits = m_SimTrackerHitsKuma.at(iDet).getSize();
-      if(numberOfHits == 0) continue;
-      
-      for (size_t iHit = 0; iHit < numberOfHits; ++iHit) {
-         Double_t hitTime = m_SimTrackerHitsKuma.at(iDet).getTime(iHit);
-         
-         Double_t hitX = m_SimTrackerHitsKuma.at(iDet).getPosiX(iHit);
-         Double_t hitY = m_SimTrackerHitsKuma.at(iDet).getPosiY(iHit);
-         Double_t hitZ = m_SimTrackerHitsKuma.at(iDet).getPosiZ(iHit);         
-         Double_t hitR = TMath::Sqrt(hitX*hitX + hitY*hitY + hitZ*hitZ);
-         // if(iDet==16) std::cout << "iDet: " << iDet << ", time: " << hitTime << ", r: " << r << std::endl;
-         
-         Double_t calibratedTime = HitTimeCalibrationByR(hitTime, hitR) + timeOffSet;
-         m_SimTrackerHitsKuma.at(iDet).setTime(iHit, calibratedTime);
-      }
-      m_SimTrackerHitsKuma.at(iDet).sortByTime();
-   }
-}
-
-Double_t triggerCombineChecker::MakeRandomTimeOffset(Int_t randomSeed){
-   // std::random_device rd;   // non-deterministic generator
-   // std::mt19937 gen(rd());  // to seed mersenne twister.
-   std::mt19937 gen(randomSeed);  // to seed mersenne twister.
-   Double_t eTimeWindow = m_timewindow - m_timeslice_width;
-   std::uniform_int_distribution<> dist(0, eTimeWindow); // time frame width 2000 ns   
-   Double_t timeOffset = dist(gen);
-
-   return timeOffset;
-}
-
-Double_t triggerCombineChecker::FindFirstPhysParticle(){
-
-   Double_t fastestMCHitTime = 9999999.;
-   for(Int_t iMCHit = 0; iMCHit < MCParticles_; ++iMCHit) {
-      Int_t pType = MCParticles_generatorStatus[iMCHit];      
-      if(pType == 0 || pType >  1100) continue; // Skip if not a physics event
-      Double_t mcHitTime = MCParticles_time[iMCHit];
-      // std::cout << "mcHitTime = " << mcHitTime << std::endl;
-      // if(mcHitTime != 0 && mcHitTime < fastestMCHitTime) fastestMCHitTime = mcHitTime;
-      if(MCParticles_parents_begin[iMCHit] == 0) fastestMCHitTime = mcHitTime; // Ensure the status is set correctly 
-   }
-   // fastestMCHitTime += 2.; // + 2 ns offset to avoid the zero time issue
-
-   return fastestMCHitTime;
-}
-
-
-void triggerCombineChecker::FillEventDisplay(Double_t sTime, Double_t eTime, bool bTF){
+void triggerCombineChecker::FillEventDisplay(Double_t sTime, Double_t eTime){
    for(size_t iDet = 0; iDet < 17; ++iDet){
       Int_t numberOfHits = m_SimTrackerHitsKuma.at(iDet).getSize();
       for (size_t iHit = 0; iHit < numberOfHits; ++iHit) {                        
          Double_t time = m_SimTrackerHitsKuma.at(iDet).getTime(iHit);
-         if(!bTF && time < sTime) continue;
-         if(!bTF && time > eTime) break; // Break if the hit time exceeds the current time slice
+         if(time < sTime) continue;
+         if(time > eTime) break; // Break if the hit time exceeds the current time slice
          
          Double_t hitX = m_SimTrackerHitsKuma.at(iDet).getPosiX(iHit);
          Double_t hitY = m_SimTrackerHitsKuma.at(iDet).getPosiY(iHit);
          Double_t hitR = std::sqrt(hitX*hitX + hitY*hitY);
          Double_t hitZ = m_SimTrackerHitsKuma.at(iDet).getPosiZ(iHit);
-         if(!bTF) m_hEventDisplayZR_Det->Fill(hitZ, hitR);
-         else m_hEventDisplayZR_Det_TF->Fill(hitZ, hitR);
+         m_hEventDisplayZR_Det->Fill(hitZ, hitR);
       }
    }
 }
@@ -446,33 +456,27 @@ void triggerCombineChecker::HistInit(){
       1000, -10000, 10000, 250, 0,2500
    );
 
-   m_hEventDisplayZR_Det_TF = new TH2D(
-      "m_hEventDisplayZR_Det_TF",
-      "Event Display; z [mm]; r [mm]",
-      1000, -10000, 10000, 250, 0,2500
-   );
-
    m_hTriggerTypesPhysCounts = new TH1D(
       "m_hTriggerTypesPhysCounts",
-      "m_hTriggerTypesPhysCounts;; count",
+      "m_hTriggerTypesPhysCounts; trigger; counts",
       10, 0.5, 10
    );
 
    m_hTriggerTypesPhysRatio = new TH1D(
       "m_hTriggerTypesPhysRatio",
-      "m_hTriggerTypesPhysRatio;; ratio",
+      "m_hTriggerTypesPhysRatio; trigger; ratio",
       10, 0.5, 10
    );
    
    m_hTriggerTypesBKGCounts = new TH1D(
       "m_hTriggerTypesBKGCounts",
-      "m_hTriggerTypesBKGCounts;; count",
+      "m_hTriggerTypesBKGCounts; trigger; counts",
       10, 0.5, 10
    );
 
    m_hTriggerTypesBKGRatio = new TH1D(
       "m_hTriggerTypesBKGRatio",
-      "m_hTriggerTypesBKGRatio;; ratio",
+      "m_hTriggerTypesBKGRatio; trigger; ratio",
       10, 0.5, 10
    );
 
@@ -560,7 +564,6 @@ void triggerCombineChecker::WriteHists(){
    oFile->cd();
 
    m_hEventDisplayZR_Det->Write();
-   m_hEventDisplayZR_Det_TF->Write();
 
    m_hTriggerTypesPhysCounts->Write();
    m_hTriggerTypesPhysRatio->Write();

@@ -57,11 +57,6 @@
         "variant": "cpp",
         "vector": "cpp",
         "algorithm": "cpp",
-        "compile.C": "cpp",
-        "triggerCombineChecker.C": "cpp",
-        "EffEvaluation.C": "cpp",
-        "hit_based_matching.C": "cpp",
-        "trackEff_Barak.C": "cpp",
-        "recoQA.C": "cpp"
+        "compile.C": "cpp"
     }
 }

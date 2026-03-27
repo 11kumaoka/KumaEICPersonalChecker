@@ -1,0 +1,120 @@
+
+
+
+
+
+TH2F* hBackwardMPGDEndcapRecHits  = new TH2F("hBackwardMPGDEndcapRecHits",  "hBackwardMPGDEndcapRecHits",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hForwardMPGDEndcapRecHits  = new TH2F("hForwardMPGDEndcapRecHits",  "hForwardMPGDEndcapRecHits",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hMPGDBarrelRecHits  = new TH2F("hMPGDBarrelRecHits",  "hMPGDBarrelRecHits",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hOuterMPGDBarrelRecHits  = new TH2F("hOuterMPGDBarrelRecHits",  "hOuterMPGDBarrelRecHits",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hSiBarrelTrackerRecHits  = new TH2F("hSiBarrelTrackerRecHits",  "hSiBarrelTrackerRecHits",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hSiBarrelVertexRecHits  = new TH2F("hSiBarrelVertexRecHits",  "hSiBarrelVertexRecHits",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hSiEndcapTrackerRecHits  = new TH2F("hSiEndcapTrackerRecHits",  "hSiEndcapTrackerRecHits",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hTOFBarrelRecHits  = new TH2F("hTOFBarrelRecHits",  "hTOFBarrelRecHits",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hTOFEndcapRecHits  = new TH2F("hTOFEndcapRecHits",  "hTOFEndcapRecHits",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hB0TrackerRecHits  = new TH2F("hB0TrackerRecHits",  "hB0TrackerRecHits",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hB0ECalClusters  = new TH2F("hB0ECalClusters",  "hB0ECalClusters",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hDIRCRawHits  = new TH2F("hDIRCRawHits",  "hDIRCRawHits",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hDRICHRawHits  = new TH2F("hDRICHRawHits",  "hDRICHRawHits",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hEcalBarrelClusters  = new TH2F("hEcalBarrelClusters",  "hEcalBarrelClusters",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hEcalBarrelImagingClusters  = new TH2F("hEcalBarrelImagingClusters",  "hEcalBarrelImagingClusters",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hEcalBarrelScFiClusters  = new TH2F("hEcalBarrelScFiClusters",  "hEcalBarrelScFiClusters",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hEcalEndcapNClusters  = new TH2F("hEcalEndcapNClusters",  "hEcalEndcapNClusters",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hEcalEndcapPClusters  = new TH2F("hEcalEndcapPClusters",  "hEcalEndcapPClusters",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hEcalFarForwardZDCClusters  = new TH2F("hEcalFarForwardZDCClusters",  "hEcalFarForwardZDCClusters",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hEcalLumiSpecClusters  = new TH2F("hEcalLumiSpecClusters",  "hEcalLumiSpecClusters",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hForwardRomanPotRecHits  = new TH2F("hForwardRomanPotRecHits",  "hForwardRomanPotRecHits",  1000, -10000, 10000, 200, 0, 2000);
+TH2F* hLFHCALClusters  = new TH2F("hLFHCALClusters",  "hLFHCALClusters",  1000, -10000, 10000, 200, 0, 2000);
+
+
+hBackwardMPGDEndcapRecHits->SetMarkerColor(880-2);
+hForwardMPGDEndcapRecHits->SetMarkerColor(880-2);
+hMPGDBarrelRecHits->SetMarkerColor(880-2);
+hOuterMPGDBarrelRecHits->SetMarkerColor(880-2);
+hSiBarrelTrackerRecHits->SetMarkerColor(880+2);
+hSiBarrelVertexRecHits->SetMarkerColor(880+4);
+hSiEndcapTrackerRecHits->SetMarkerColor(880+2);
+hTOFBarrelRecHits->SetMarkerColor(880+10);
+hTOFEndcapRecHits->SetMarkerColor(880+10);
+hB0TrackerRecHits->SetMarkerColor(860+7);
+hB0ECalClusters->SetMarkerColor(860-3);
+hDIRCRawHits->SetMarkerColor(860-6);
+hDRICHRawHits->SetMarkerColor(860);
+hEcalBarrelClusters->SetMarkerColor(880-4);
+hEcalBarrelImagingClusters->SetMarkerColor(600-7);
+hEcalBarrelScFiClusters->SetMarkerColor(840-3);
+hEcalEndcapNClusters->SetMarkerColor(600-9);
+hEcalEndcapPClusters->SetMarkerColor(600-9);
+hEcalFarForwardZDCClusters->SetMarkerColor(880+1);
+hEcalLumiSpecClusters->SetMarkerColor(860+10);
+hForwardRomanPotRecHits->SetMarkerColor(880-6);
+hLFHCALClusters->SetMarkerColor(600-3);
+
+
+events->Draw("sqrt(BackwardMPGDEndcapRecHits.position.x*BackwardMPGDEndcapRecHits.position.x + BackwardMPGDEndcapRecHits.position.y*BackwardMPGDEndcapRecHits.position.y):BackwardMPGDEndcapRecHits.position.z >> hBackwardMPGDEndcapRecHits");
+events->Draw("sqrt(ForwardMPGDEndcapRecHits.position.x*ForwardMPGDEndcapRecHits.position.x + ForwardMPGDEndcapRecHits.position.y*ForwardMPGDEndcapRecHits.position.y):ForwardMPGDEndcapRecHits.position.z >> hForwardMPGDEndcapRecHits");
+events->Draw("sqrt(MPGDBarrelRecHits.position.x*MPGDBarrelRecHits.position.x + MPGDBarrelRecHits.position.y*MPGDBarrelRecHits.position.y):MPGDBarrelRecHits.position.z >> hMPGDBarrelRecHits");
+events->Draw("sqrt(OuterMPGDBarrelRecHits.position.x*OuterMPGDBarrelRecHits.position.x + OuterMPGDBarrelRecHits.position.y*OuterMPGDBarrelRecHits.position.y):OuterMPGDBarrelRecHits.position.z >> hOuterMPGDBarrelRecHits");
+events->Draw("sqrt(SiBarrelTrackerRecHits.position.x*SiBarrelTrackerRecHits.position.x + SiBarrelTrackerRecHits.position.y*SiBarrelTrackerRecHits.position.y):SiBarrelTrackerRecHits.position.z >> hSiBarrelTrackerRecHits");
+events->Draw("sqrt(SiBarrelVertexRecHits.position.x*SiBarrelVertexRecHits.position.x + SiBarrelVertexRecHits.position.y*SiBarrelVertexRecHits.position.y):SiBarrelVertexRecHits.position.z >> hSiBarrelVertexRecHits");
+events->Draw("sqrt(SiEndcapTrackerRecHits.position.x*SiEndcapTrackerRecHits.position.x + SiEndcapTrackerRecHits.position.y*SiEndcapTrackerRecHits.position.y):SiEndcapTrackerRecHits.position.z >> hSiEndcapTrackerRecHits");
+events->Draw("sqrt(TOFBarrelRecHits.position.x*TOFBarrelRecHits.position.x + TOFBarrelRecHits.position.y*TOFBarrelRecHits.position.y):TOFBarrelRecHits.position.z >> hTOFBarrelRecHits");
+events->Draw("sqrt(TOFEndcapRecHits.position.x*TOFEndcapRecHits.position.x + TOFEndcapRecHits.position.y*TOFEndcapRecHits.position.y):TOFEndcapRecHits.position.z >> hTOFEndcapRecHits");
+
+
+events->Draw("sqrt(B0TrackerRecHits.position.x*B0TrackerRecHits.position.x + B0TrackerRecHits.position.y*B0TrackerRecHits.position.y):B0TrackerRecHits.position.z >> hB0TrackerRecHits");
+events->Draw("sqrt(B0ECalClusters.position.x*B0ECalClusters.position.x + B0ECalClusters.position.y*B0ECalClusters.position.y):B0ECalClusters.position.z >> hB0ECalClusters");
+events->Draw("sqrt(DIRCRawHits.position.x*DIRCRawHits.position.x + DIRCRawHits.position.y*DIRCRawHits.position.y):DIRCRawHits.position.z >> hDIRCRawHits");
+events->Draw("sqrt(DRICHRawHits.position.x*DRICHRawHits.position.x + DRICHRawHits.position.y*DRICHRawHits.position.y):DRICHRawHits.position.z >> hDRICHRawHits");
+events->Draw("sqrt(EcalBarrelClusters.position.x*EcalBarrelClusters.position.x + EcalBarrelClusters.position.y*EcalBarrelClusters.position.y):EcalBarrelClusters.position.z >> hEcalBarrelClusters");
+events->Draw("sqrt(EcalBarrelImagingClusters.position.x*EcalBarrelImagingClusters.position.x + EcalBarrelImagingClusters.position.y*EcalBarrelImagingClusters.position.y):EcalBarrelImagingClusters.position.z >> hEcalBarrelImagingClusters");
+events->Draw("sqrt(EcalBarrelScFiClusters.position.x*EcalBarrelScFiClusters.position.x + EcalBarrelScFiClusters.position.y*EcalBarrelScFiClusters.position.y):EcalBarrelScFiClusters.position.z >> hEcalBarrelScFiClusters");
+
+events->Draw("sqrt(EcalEndcapNClusters.position.x*EcalEndcapNClusters.position.x + EcalEndcapNClusters.position.y*EcalEndcapNClusters.position.y):EcalEndcapNClusters.position.z >> hEcalEndcapNClusters");
+events->Draw("sqrt(EcalEndcapPClusters.position.x*EcalEndcapPClusters.position.x + EcalEndcapPClusters.position.y*EcalEndcapPClusters.position.y):EcalEndcapPClusters.position.z >> hEcalEndcapPClusters");
+events->Draw("sqrt(EcalFarForwardZDCClusters.position.x*EcalFarForwardZDCClusters.position.x + EcalFarForwardZDCClusters.position.y*EcalFarForwardZDCClusters.position.y):EcalFarForwardZDCClusters.position.z >> hEcalFarForwardZDCClusters");
+events->Draw("sqrt(EcalLumiSpecClusters.position.x*EcalLumiSpecClusters.position.x + EcalLumiSpecClusters.position.y*EcalLumiSpecClusters.position.y):EcalLumiSpecClusters.position.z >> hEcalLumiSpecClusters");
+events->Draw("sqrt(ForwardRomanPotRecHits.position.x*ForwardRomanPotRecHits.position.x + ForwardRomanPotRecHits.position.y*ForwardRomanPotRecHits.position.y):ForwardRomanPotRecHits.position.z >> hForwardRomanPotRecHits");
+events->Draw("sqrt(LFHCALClusters.position.x*LFHCALClusters.position.x + LFHCALClusters.position.y*LFHCALClusters.position.y):LFHCALClusters.position.z >> hLFHCALClusters");
+
+
+
+events->Draw("EcalEndcapPClusters.position.x:EcalEndcapPClusters.position.y:EcalEndcapPClusters.position.z");
+
+
+
+hBackwardMPGDEndcapRecHits->Draw("SCAT")
+hForwardMPGDEndcapRecHits->Draw("SCAT same")
+hMPGDBarrelRecHits->Draw("SCAT same")
+hOuterMPGDBarrelRecHits->Draw("SCAT same")
+hSiBarrelTrackerRecHits->Draw("SCAT same")
+hSiBarrelVertexRecHits->Draw("SCAT same")
+hSiEndcapTrackerRecHits->Draw("SCAT same")
+hTOFBarrelRecHits->Draw("SCAT same")
+hTOFEndcapRecHits->Draw("SCAT same")
+
+hB0TrackerRecHits->Draw("SCAT same")
+hB0ECalClusters->Draw("SCAT same")
+
+hDIRCRawHits->Draw("SCAT same");
+hDRICHRawHits->Draw("SCAT same");
+hEcalBarrelClusters->Draw("SCAT same");
+hEcalBarrelImagingClusters->Draw("SCAT same");
+hEcalBarrelScFiClusters->Draw("SCAT same");
+hEcalEndcapNClusters->Draw("SCAT same");
+hEcalEndcapPClusters->Draw("SCAT same");
+hEcalFarForwardZDCClusters->Draw("SCAT same");
+hEcalLumiSpecClusters->Draw("SCAT same");
+hForwardRomanPotRecHits->Draw("SCAT same");
+hLFHCALClusters->Draw("SCAT same");
+
+
+
+
+
+
+
+TH2F* hBackwardMPGDEndcapRecHits  = new TH2F("hBackwardMPGDEndcapRecHits",  "hBackwardMPGDEndcapRecHits",  1000, -10000, 10000, 200, 0, 2000);
+events->Draw("sqrt(BackwardMPGDEndcapRecHits.position.x*BackwardMPGDEndcapRecHits.position.x + BackwardMPGDEndcapRecHits.position.y*BackwardMPGDEndcapRecHits.position.y):BackwardMPGDEndcapRecHits.position.z >> hBackwardMPGDEndcapRecHits","","goff");
+hBackwardMPGDEndcapRecHits->Draw()
+
