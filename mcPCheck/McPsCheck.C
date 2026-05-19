@@ -35,6 +35,7 @@ void McPsCheck::Loop()
 {
    if (fChain == 0) return;
 
+   
    HistInit();
 
    Long64_t nentries = fChain->GetEntriesFast();
@@ -51,11 +52,13 @@ void McPsCheck::Loop()
    //  m_vTargetEvents = {0, 1 ,2, 3, 4, 5,6, 7, 8};
     m_vTargetEvents = {};
 
+   //  Int_t numOfEventLoops = 74000;
    Int_t numOfEventLoops = 1000;
-   // Int_t numOfEventLoops = 5;
+   // Int_t numOfEventLoops = 10;
    // Int_t numOfEventLoops = nentries;
    if(bTargetEV) numOfEventLoops = m_vTargetEvents.size();
 
+   
    
    // for (Long64_t jentry=0; jentry<1000; jentry++) {
    for (Long64_t jentry = 0; jentry < numOfEventLoops; ++jentry) {
@@ -67,21 +70,150 @@ void McPsCheck::Loop()
       if (ientry < 0) break;
       nb = fChain->GetEntry(jentry);   nbytes += nb;
 
-      // if(jentry%100 == 0)std::cout << " == event" << jentry << " =====" << std::endl;
-      std::cout << " == event" << jentry << " =====" << std::endl;
+      if(jentry%1000 == 0) std::cout << " == event" << jentry << " =====" << std::endl;
+      // std::cout << " == event" << jentry << " =====" << std::endl;
       numOfEvents[17]++;
 
+      // if(VertexBarrelHits_){
+      //    std::cout << "VertexBarrelHits_: " << VertexBarrelHits_ << "_VertexBarrelHits_particles: " << _VertexBarrelHits_particle_ << std::endl;
+      //    for(size_t iPart = 0; iPart < _VertexBarrelHits_particle_; iPart++){
+      //       Int_t pTagId = _VertexBarrelHits_particle_index[iPart];
+      //       std::cout << "pTagId: " << pTagId << ", PID: " << MCParticles_PDG[pTagId] << ", generatorStatus: " << MCParticles_generatorStatus[pTagId] << std::endl;
+
+      //    }
+         
+      // }
+      // if(SiBarrelHits_){
+      //    std::cout << "count Event " << tempCount << ":: VertexBarrelHits_ = " << VertexBarrelHits_ << ", SiBarrelHits_: " << SiBarrelHits_ << ", TrackerEndcapHits_: " << TrackerEndcapHits_\
+      //    << ", MPGDBarrelHits_: " << MPGDBarrelHits_ << ", OuterMPGDBarrelHits_ = " << OuterMPGDBarrelHits_ << ", ForwardMPGDEndcapHits_ = " << ForwardMPGDEndcapHits_\
+      //    << ", BackwardMPGDEndcapHits_ = " << BackwardMPGDEndcapHits_ << ", TOFBarrelHits_ = " << TOFBarrelHits_ << ", TOFEndcapHits_ = " << TOFEndcapHits_ << std::endl;
+      //    tempCount++;
+      // }
+      CountMcParticles();
+
+      FillHitTimeDispersion();
+      FillHitTimeDispersionForMixBKG();
+      
+      FillZRHitMaps();
       FillEtaPtMaps();
 
-      if(m_iDisplayCount < 9){
-         recordEventsForED();
+      countTrkDetHits();
+      countCalDetHits();
+      
+      
+      if(m_iDisplayCount < numOfED){
+         if(1){
+         // if(TOFBarrelHits_ && SiBarrelHits_){
+            m_iDisplayCount++;
+            recordMCPsForED();
+            recordTrkHitsForED();
+            recordCalHitsForED();
+
+            // for(size_t iTofP = 0; iTofP < _TOFBarrelHits_particle_; iTofP++){
+            //    Int_t iP = _TOFBarrelHits_particle_index[iTofP];
+            //    std::cout << "iP: [" << iP\
+            //    << "], PID: " << MCParticles_PDG[iP] << std::endl;
+            // }
+            // for(size_t iMCP = 0; iMCP < MCParticles_; iMCP++){
+            //    std::cout << "iMCP: [" << iMCP\
+            //    << "], PID: " << MCParticles_PDG[iMCP]\
+            //    << ", charge: " << MCParticles_charge[iMCP]\
+            //    << ", generatorStatus: " << MCParticles_generatorStatus[iMCP]\
+            //    << ", vertex: (" << MCParticles_vertex_x[iMCP] << ", " << MCParticles_vertex_y[iMCP] << ", " << MCParticles_vertex_z[iMCP] << ")"\
+            //    << ", momentum: (" << MCParticles_momentum_x[iMCP] << ", " << MCParticles_momentum_y[iMCP] << ", " << MCParticles_momentum_z[iMCP] << ")"\
+            //    << std::endl;
+            // }
+
+         } 
+
       }
    }
 
+
+   for(size_t iBkg = 0; iBkg < 5; iBkg++){
+      m_hZRHitRatio_All_BKG[iBkg]->Scale(1./(1.0*(numOfEventLoops)));
+      m_hZRHitRatio_ChMcP_BKG[iBkg]->Scale(1./(1.0*(numOfEventLoops)));
+      m_hZRHitRatio_NMcP_BKG[iBkg]->Scale(1./(1.0*(numOfEventLoops)));
+
+      m_HitsPerEveWithDetHits_Trk_BKG[iBkg]->Scale(1./(1.0*(numOfEventLoops)));
+      m_HitsPerEveWithDetHits_Cal_BKG[iBkg]->Scale(1./(1.0*(numOfEventLoops)));
+   }
+   m_NumOfEventsOfBKG->Scale(1./(1.0*(numOfEventLoops)));
+
+
+   Int_t numOfHEndBinPhys = m_HitTCalcT0Dispersion_Phys->GetNbinsX();
+   Int_t totCountPhys = m_HitTCalcT0Dispersion_Phys->Integral(1, numOfHEndBinPhys);
+   Int_t inteCountPhys = 0;
+   Double_t numOfPhysHits95 = 0;
+   Double_t threBinVal95 = 0;
+   Double_t numOfPhysHits99 = 0;
+   Double_t threBinVal99 = 0;
+   for (int iBin = 1; iBin <= numOfHEndBinPhys; ++iBin) {
+      Int_t binContent = m_HitTCalcT0Dispersion_Phys->GetBinContent(iBin);
+      inteCountPhys += binContent;
+      std::cout << "iBin: " << iBin << ", binCenter: " << m_HitTCalcT0Dispersion_Phys->GetXaxis()->GetBinCenter(iBin) << ", binContent: " << binContent << ", inteCountPhys: " << inteCountPhys << std::endl;
+      if(inteCountPhys > 0.95 * totCountPhys){
+         std::cout << "95% threshold reached at iBin: " << iBin << ", binCenter: " << m_HitTCalcT0Dispersion_Phys->GetXaxis()->GetBinCenter(iBin) << ", inteCountPhys: " << inteCountPhys << std::endl;
+         if(threBinVal95 == 0){
+                     std::cout << "95% threshold reached at iBin: " << iBin << ", binCenter: " << m_HitTCalcT0Dispersion_Phys->GetXaxis()->GetBinCenter(iBin) << ", inteCountPhys: " << inteCountPhys << std::endl;
+            threBinVal95 = m_HitTCalcT0Dispersion_Phys->GetXaxis()->GetBinCenter(iBin - 1);
+            numOfPhysHits95 = inteCountPhys;
+         }
+      }
+      if(inteCountPhys > 0.99 * totCountPhys){
+         if(threBinVal99 == 0){
+            threBinVal99 = m_HitTCalcT0Dispersion_Phys->GetXaxis()->GetBinCenter(iBin - 1);
+            numOfPhysHits99 = inteCountPhys;
+         }
+         break;
+      }
+   }
+   Double_t threSBinIDVal95 = m_HitTCalcT0Dispersion_Phys->GetXaxis()->FindBin(-threBinVal95);
+   Double_t threEBinIDVal95 = m_HitTCalcT0Dispersion_Phys->GetXaxis()->FindBin(threBinVal95);
+   Double_t threSBinIDVal99 = m_HitTCalcT0Dispersion_Phys->GetXaxis()->FindBin(-threBinVal99);
+   Double_t threEBinIDVal99 = m_HitTCalcT0Dispersion_Phys->GetXaxis()->FindBin(threBinVal99);
+   Int_t inteCountBKG95 = 0;
+   for (int iBin = threSBinIDVal95; iBin <= threEBinIDVal95; ++iBin) {
+      Int_t binContent = m_HitTCalcT0Dispersion_Phys->GetBinContent(iBin);
+      inteCountBKG95 += binContent;
+   }
+   Int_t inteCountBKG99 = 0;
+   for (int iBin = threSBinIDVal99; iBin <= threEBinIDVal99; ++iBin) {
+      Int_t binContent = m_HitTCalcT0Dispersion_Phys->GetBinContent(iBin);
+      inteCountBKG99 += binContent;
+   }
+   std::cout<< "-threBinVal95, threSBinIDVal95 = " << - threBinVal95 << ", " << threSBinIDVal95 << std::endl;
+   std::cout<< "threBinVal95, threEBinIDVal95 = " << threBinVal95 << ", " << threEBinIDVal95 << std::endl;
+
+   std::cout << "95 percents hits contain time = " << threBinVal95 << " ns, numOfPhysHits95 = " << numOfPhysHits95 << ", numOfBKGHits95 = " << inteCountBKG95 << std::endl;
+   std::cout << "99 percents hits contain time = " << threBinVal99 << " ns, numOfPhysHits99 = " << numOfPhysHits99 << ", numOfBKGHits99 = " << inteCountBKG99 << std::endl;
+   m_HitTCalcT0Dispersion_Phys->Scale(1./(1.0*(numOfEventLoops)));
+   m_HitTCalcT0Dispersion_BKG->Scale(1./(1.0*(numOfEventLoops)));
+   m_HitTCalcT0Dispersion_Phys_BTOF->Scale(1./(1.0*(numOfEventLoops)));
+   m_HitTCalcT0Dispersion_BKG_BTOF->Scale(1./(1.0*(numOfEventLoops)));
+
+
+   Int_t numOfHEndBin = m_HitTCalcT0Dispersion->GetNbinsX();
+   Int_t totCount = m_HitTCalcT0Dispersion->Integral(1, numOfHEndBin);
+   Int_t inteCount = 0;
+   Double_t threBinVal = 0;
+   for (int iBin = 1; iBin <= numOfHEndBin; ++iBin) {
+      Int_t binContent = m_HitTCalcT0Dispersion->GetBinContent(iBin);
+      inteCount += binContent;
+      if(inteCount > 0.9 * totCount){
+          threBinVal = m_HitTCalcT0Dispersion->GetXaxis()->GetBinCenter(iBin - 1);
+         break;
+      }
+   }
+   std::cout << "90 percents hits contain time = " << threBinVal << " ns" <<  std::endl;
+
+
    WriteHists();
 
+   drawOnlyOneEvent(m_eventsForED[0]);
+
    // TApplication app("app", &argc, argv);
-   for (size_t nHist = 0; nHist < 8; nHist++) {
+   for (size_t nHist = 0; nHist < numOfED; nHist++) {
       m_hEventDisplays[nHist] = nullptr;
       m_hEventDisplays[nHist] = new TH3D(
          Form("hEventDisplays%zu", nHist), ";z [mm];x [mm]; y [mm]", 100, -5000, 5000, 100, -2000, 2000, 100, -2000, 2000
@@ -101,26 +233,1261 @@ void McPsCheck::Loop()
 
    drawEightEvents2D_ZX();
 
+   std::cout << "tempCount = " << tempCount << std::endl;
    std::cout << "std::vector<Int_t > m_vTargetEvents = {";
    for(Int_t i = 0; i < m_vTargetEvents.size(); i++) std::cout << m_vTargetEvents.at(i) << ", ";
    std::cout << "};" << std::endl;
 
    std::cout << "Number of noise events: " << numOfNoise << std::endl;
+   std::cout << "Handled number of Events: " << numOfEventLoops << std::endl;
+
+}
+
+void McPsCheck::CountMcParticles(){
+   for(size_t iMCP = 0; iMCP < MCParticles_; iMCP++){
+      if(MCParticles_generatorStatus[iMCP] == 6004) m_NumOfEventsOfBKG->Fill(5);
+      else if(MCParticles_generatorStatus[iMCP] == 5004) m_NumOfEventsOfBKG->Fill(4);
+      else if(MCParticles_generatorStatus[iMCP] == 4004) m_NumOfEventsOfBKG->Fill(3);
+      else if(MCParticles_generatorStatus[iMCP] == 3004) m_NumOfEventsOfBKG->Fill(2);
+      else if(MCParticles_generatorStatus[iMCP] == 2004) m_NumOfEventsOfBKG->Fill(1);
+
+   }
+}
+
+
+void McPsCheck::FillZRHitMaps(){
+
+   bool bIsBkg[5] = {false, false, false, false, false};
+   Int_t eachBkgHitCountTrk[5][17] = {};
+   Int_t eachBkgHitCountCal[5][12] = {};
+   
+   for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+   for(size_t iHit = 0; iHit < VertexBarrelHits_; iHit++){
+      Int_t pTagId = _VertexBarrelHits_particle_index[iHit];
+      Double_t hitR = TMath::Sqrt(
+         VertexBarrelHits_position_x[iHit] * VertexBarrelHits_position_x[iHit] +
+         VertexBarrelHits_position_y[iHit] * VertexBarrelHits_position_y[iHit]
+      );
+
+      if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_hZRHitRatio_All_BKG[4]->Fill(VertexBarrelHits_position_z[iHit], hitR);
+         eachBkgHitCountTrk[4][0]++;
+         bIsBkg[4] = true;
+      }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_hZRHitRatio_All_BKG[3]->Fill(VertexBarrelHits_position_z[iHit], hitR);
+         eachBkgHitCountTrk[3][0]++;
+         bIsBkg[3] = true;
+      }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_hZRHitRatio_All_BKG[2]->Fill(VertexBarrelHits_position_z[iHit], hitR);
+         eachBkgHitCountTrk[2][0]++;
+         bIsBkg[2] = true;
+      }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_hZRHitRatio_All_BKG[1]->Fill(VertexBarrelHits_position_z[iHit], hitR);
+         eachBkgHitCountTrk[1][0]++;
+         bIsBkg[1] = true;
+      }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_hZRHitRatio_All_BKG[0]->Fill(VertexBarrelHits_position_z[iHit], hitR);
+         eachBkgHitCountTrk[0][0]++;
+         bIsBkg[0] = true;
+      }      
+   }
+   for(size_t iBkg = 0; iBkg < 5; iBkg++){
+      if(bIsBkg[iBkg]) m_EveCountWithDetHits_Trk_BKG[iBkg] ->Fill(1);
+      m_HitsPerEveWithDetHits_Trk_BKG[iBkg]->Fill(1, eachBkgHitCountTrk[iBkg][0]);
+   }
+
+
+   for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+   for(size_t iHit = 0; iHit < SiBarrelHits_; iHit++){
+      Int_t pTagId = _SiBarrelHits_particle_index[iHit];
+      Double_t hitR = TMath::Sqrt(
+         SiBarrelHits_position_x[iHit] * SiBarrelHits_position_x[iHit] +
+         SiBarrelHits_position_y[iHit] * SiBarrelHits_position_y[iHit]
+      );
+
+      if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_hZRHitRatio_All_BKG[4]->Fill(SiBarrelHits_position_z[iHit], hitR);
+         eachBkgHitCountTrk[4][1]++;
+         bIsBkg[4] = true;
+      }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_hZRHitRatio_All_BKG[3]->Fill(SiBarrelHits_position_z[iHit], hitR);
+         eachBkgHitCountTrk[3][1]++;
+         bIsBkg[3] = true;
+      }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_hZRHitRatio_All_BKG[2]->Fill(SiBarrelHits_position_z[iHit], hitR);
+         eachBkgHitCountTrk[2][1]++;
+         bIsBkg[2] = true;
+      }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_hZRHitRatio_All_BKG[1]->Fill(SiBarrelHits_position_z[iHit], hitR);
+         eachBkgHitCountTrk[1][1]++;
+         bIsBkg[1] = true;
+      }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_hZRHitRatio_All_BKG[0]->Fill(SiBarrelHits_position_z[iHit], hitR);
+         eachBkgHitCountTrk[0][1]++;
+         bIsBkg[0] = true;
+      }
+
+   }
+   for(size_t iBkg = 0; iBkg < 5; iBkg++){
+      if(bIsBkg[iBkg]) m_EveCountWithDetHits_Trk_BKG[iBkg] ->Fill(2);
+      m_HitsPerEveWithDetHits_Trk_BKG[iBkg]->Fill(2, eachBkgHitCountTrk[iBkg][1]);
+   }
+
+
+   for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+   for(size_t iHit = 0; iHit < TrackerEndcapHits_; iHit++){
+      Int_t pTagId = _TrackerEndcapHits_particle_index[iHit];
+      Double_t hitR = TMath::Sqrt(
+         TrackerEndcapHits_position_x[iHit] * TrackerEndcapHits_position_x[iHit] +
+         TrackerEndcapHits_position_y[iHit] * TrackerEndcapHits_position_y[iHit]
+      );
+
+      if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_hZRHitRatio_All_BKG[4]->Fill(TrackerEndcapHits_position_z[iHit], hitR);
+         eachBkgHitCountTrk[4][2]++;
+         bIsBkg[4] = true;
+      }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_hZRHitRatio_All_BKG[3]->Fill(TrackerEndcapHits_position_z[iHit], hitR);
+         eachBkgHitCountTrk[3][2]++;
+         bIsBkg[3] = true;
+      }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_hZRHitRatio_All_BKG[2]->Fill(TrackerEndcapHits_position_z[iHit], hitR);
+         eachBkgHitCountTrk[2][2]++;
+         bIsBkg[2] = true;
+      }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_hZRHitRatio_All_BKG[1]->Fill(TrackerEndcapHits_position_z[iHit], hitR);
+         eachBkgHitCountTrk[1][2]++;
+         bIsBkg[1] = true;
+      }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_hZRHitRatio_All_BKG[0]->Fill(TrackerEndcapHits_position_z[iHit], hitR);
+         eachBkgHitCountTrk[0][2]++;
+         bIsBkg[0] = true;
+      }
+   }
+   for(size_t iBkg = 0; iBkg < 5; iBkg++){
+      if(bIsBkg[iBkg]) m_EveCountWithDetHits_Trk_BKG[iBkg] ->Fill(3);
+      m_HitsPerEveWithDetHits_Trk_BKG[iBkg]->Fill(3, eachBkgHitCountTrk[iBkg][2]);
+   }
+
+
+   for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+   for(size_t iHit = 0; iHit < MPGDBarrelHits_; iHit++){
+      Int_t pTagId = _MPGDBarrelHits_particle_index[iHit];
+      Double_t hitR = TMath::Sqrt(
+         MPGDBarrelHits_position_x[iHit] * MPGDBarrelHits_position_x[iHit] +
+         MPGDBarrelHits_position_y[iHit] * MPGDBarrelHits_position_y[iHit]
+      );
+
+      if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_hZRHitRatio_All_BKG[4]->Fill(MPGDBarrelHits_position_z[iHit], hitR);
+         eachBkgHitCountTrk[4][3]++;
+         bIsBkg[4] = true;
+      }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_hZRHitRatio_All_BKG[3]->Fill(MPGDBarrelHits_position_z[iHit], hitR);
+         eachBkgHitCountTrk[3][3]++;
+         bIsBkg[3] = true;
+      }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_hZRHitRatio_All_BKG[2]->Fill(MPGDBarrelHits_position_z[iHit], hitR);
+         eachBkgHitCountTrk[2][3]++;
+         bIsBkg[2] = true;
+      }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_hZRHitRatio_All_BKG[1]->Fill(MPGDBarrelHits_position_z[iHit], hitR);
+         eachBkgHitCountTrk[1][3]++;
+         bIsBkg[1] = true;
+      }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_hZRHitRatio_All_BKG[0]->Fill(MPGDBarrelHits_position_z[iHit], hitR);
+         eachBkgHitCountTrk[0][3]++;
+         bIsBkg[0] = true;
+      }
+   }
+   for(size_t iBkg = 0; iBkg < 5; iBkg++){
+      if(bIsBkg[iBkg]) m_EveCountWithDetHits_Trk_BKG[iBkg] ->Fill(4);
+      m_HitsPerEveWithDetHits_Trk_BKG[iBkg]->Fill(4, eachBkgHitCountTrk[iBkg][3]);
+   }
+
+      for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+      for(size_t iHit = 0; iHit < OuterMPGDBarrelHits_; iHit++){
+         Int_t pTagId = _OuterMPGDBarrelHits_particle_index[iHit];
+         Double_t hitR = TMath::Sqrt(
+            OuterMPGDBarrelHits_position_x[iHit] * OuterMPGDBarrelHits_position_x[iHit] +
+            OuterMPGDBarrelHits_position_y[iHit] * OuterMPGDBarrelHits_position_y[iHit]
+         );
+
+         if(MCParticles_generatorStatus[pTagId] > 5999){
+            m_hZRHitRatio_All_BKG[4]->Fill(OuterMPGDBarrelHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[4][4]++;
+            bIsBkg[4] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 4999){
+            m_hZRHitRatio_All_BKG[3]->Fill(OuterMPGDBarrelHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[3][4]++;
+            bIsBkg[3] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 3999){
+            m_hZRHitRatio_All_BKG[2]->Fill(OuterMPGDBarrelHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[2][4]++;
+            bIsBkg[2] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 2999){
+            m_hZRHitRatio_All_BKG[1]->Fill(OuterMPGDBarrelHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[1][4]++;
+            bIsBkg[1] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 1999){
+            m_hZRHitRatio_All_BKG[0]->Fill(OuterMPGDBarrelHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[0][4]++;
+            bIsBkg[0] = true;
+         }
+      }
+      for(size_t iBkg = 0; iBkg < 5; iBkg++){
+         if(bIsBkg[iBkg]) m_EveCountWithDetHits_Trk_BKG[iBkg] ->Fill(5);
+         m_HitsPerEveWithDetHits_Trk_BKG[iBkg]->Fill(5, eachBkgHitCountTrk[iBkg][4]);
+      }
+
+
+      for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+      for(size_t iHit = 0; iHit < ForwardMPGDEndcapHits_; iHit++){
+         Int_t pTagId = _ForwardMPGDEndcapHits_particle_index[iHit];
+         Double_t hitR = TMath::Sqrt(
+            ForwardMPGDEndcapHits_position_x[iHit] * ForwardMPGDEndcapHits_position_x[iHit] +
+            ForwardMPGDEndcapHits_position_y[iHit] * ForwardMPGDEndcapHits_position_y[iHit]
+         );
+
+         if(MCParticles_generatorStatus[pTagId] > 5999){
+            m_hZRHitRatio_All_BKG[4]->Fill(ForwardMPGDEndcapHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[4][5]++;
+            bIsBkg[4] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 4999){
+            m_hZRHitRatio_All_BKG[3]->Fill(ForwardMPGDEndcapHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[3][5]++;
+            bIsBkg[3] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 3999){
+            m_hZRHitRatio_All_BKG[2]->Fill(ForwardMPGDEndcapHits_position_z[iHit], hitR);                
+            eachBkgHitCountTrk[2][5]++;
+            bIsBkg[2] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 2999){
+            m_hZRHitRatio_All_BKG[1]->Fill(ForwardMPGDEndcapHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[1][5]++;
+            bIsBkg[1] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 1999){
+            m_hZRHitRatio_All_BKG[0]->Fill(ForwardMPGDEndcapHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[0][5]++;
+            bIsBkg[0] = true;
+         }
+      }
+      for(size_t iBkg = 0; iBkg < 5; iBkg++){
+         if(bIsBkg[iBkg]) m_EveCountWithDetHits_Trk_BKG[iBkg] ->Fill(6);
+         m_HitsPerEveWithDetHits_Trk_BKG[iBkg]->Fill(6, eachBkgHitCountTrk[iBkg][5]);
+      }
+
+
+      for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+      for(size_t iHit = 0; iHit < BackwardMPGDEndcapHits_; iHit++){
+         Int_t pTagId = _BackwardMPGDEndcapHits_particle_index[iHit];
+         Double_t hitR = TMath::Sqrt(
+            BackwardMPGDEndcapHits_position_x[iHit] * BackwardMPGDEndcapHits_position_x[iHit] +
+            BackwardMPGDEndcapHits_position_y[iHit] * BackwardMPGDEndcapHits_position_y[iHit]
+         );
+         if(MCParticles_generatorStatus[pTagId] > 5999){
+            m_hZRHitRatio_All_BKG[4]->Fill(BackwardMPGDEndcapHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[4][6]++;
+            bIsBkg[4] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 4999){
+            m_hZRHitRatio_All_BKG[3]->Fill(BackwardMPGDEndcapHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[3][6]++;
+            bIsBkg[3] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 3999){
+            m_hZRHitRatio_All_BKG[2]->Fill(BackwardMPGDEndcapHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[2][6]++;
+            bIsBkg[2] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 2999){
+            m_hZRHitRatio_All_BKG[1]->Fill(BackwardMPGDEndcapHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[1][6]++;
+            bIsBkg[1] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 1999){
+            m_hZRHitRatio_All_BKG[0]->Fill(BackwardMPGDEndcapHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[0][6]++;
+            bIsBkg[0] = true;
+         }
+      }
+      for(size_t iBkg = 0; iBkg < 5; iBkg++){
+         if(bIsBkg[iBkg]) m_EveCountWithDetHits_Trk_BKG[iBkg] ->Fill(7);
+         m_HitsPerEveWithDetHits_Trk_BKG[iBkg]->Fill(7, eachBkgHitCountTrk[iBkg][6]);
+      }
+
+      
+      for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+      for(size_t iHit = 0; iHit < TOFBarrelHits_; iHit++){
+         Int_t pTagId = _TOFBarrelHits_particle_index[iHit];
+         Double_t hitR = TMath::Sqrt(
+            TOFBarrelHits_position_x[iHit] * TOFBarrelHits_position_x[iHit] +
+            TOFBarrelHits_position_y[iHit] * TOFBarrelHits_position_y[iHit]
+         );
+         if(MCParticles_generatorStatus[pTagId] > 5999){
+            m_hZRHitRatio_All_BKG[4]->Fill(TOFBarrelHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[4][7]++;
+            bIsBkg[4] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 4999){
+            m_hZRHitRatio_All_BKG[3]->Fill(TOFBarrelHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[3][7]++;
+            bIsBkg[3] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 3999){
+            m_hZRHitRatio_All_BKG[2]->Fill(TOFBarrelHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[2][7]++;
+            bIsBkg[2] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 2999){
+            m_hZRHitRatio_All_BKG[1]->Fill(TOFBarrelHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[1][7]++;
+            bIsBkg[1] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 1999){
+            m_hZRHitRatio_All_BKG[0]->Fill(TOFBarrelHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[0][7]++;
+            bIsBkg[0] = true;
+         }
+      }
+      for(size_t iBkg = 0; iBkg < 5; iBkg++){
+         if(bIsBkg[iBkg]) m_EveCountWithDetHits_Trk_BKG[iBkg] ->Fill(8);
+         m_HitsPerEveWithDetHits_Trk_BKG[iBkg]->Fill(8, eachBkgHitCountTrk[iBkg][7]);
+      }
+
+
+      for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+      for(size_t iHit = 0; iHit < TOFEndcapHits_; iHit++){
+         Int_t pTagId = _TOFEndcapHits_particle_index[iHit];
+         Double_t hitR = TMath::Sqrt(
+            TOFEndcapHits_position_x[iHit] * TOFEndcapHits_position_x[iHit] +
+            TOFEndcapHits_position_y[iHit] * TOFEndcapHits_position_y[iHit]
+         );
+         if(MCParticles_generatorStatus[pTagId] > 5999){
+            m_hZRHitRatio_All_BKG[4]->Fill(TOFEndcapHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[4][8]++;
+            bIsBkg[4] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 4999){
+            m_hZRHitRatio_All_BKG[3]->Fill(TOFEndcapHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[3][8]++;
+            bIsBkg[3] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 3999){
+            m_hZRHitRatio_All_BKG[2]->Fill(TOFEndcapHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[2][8]++;
+            bIsBkg[2] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 2999){
+            m_hZRHitRatio_All_BKG[1]->Fill(TOFEndcapHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[1][8]++;
+            bIsBkg[1] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 1999){
+            m_hZRHitRatio_All_BKG[0]->Fill(TOFEndcapHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[0][8]++;
+            bIsBkg[0] = true;
+         }
+      }
+      for(size_t iBkg = 0; iBkg < 5; iBkg++){
+         if(bIsBkg[iBkg]) m_EveCountWithDetHits_Trk_BKG[iBkg] ->Fill(9);
+         m_HitsPerEveWithDetHits_Trk_BKG[iBkg]->Fill(9, eachBkgHitCountTrk[iBkg][8]);
+      }
+
+
+      for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+      for(size_t iHit = 0; iHit < B0TrackerHits_; iHit++){
+         Int_t pTagId = _B0TrackerHits_particle_index[iHit];
+         Double_t hitR = TMath::Sqrt(
+            B0TrackerHits_position_x[iHit] * B0TrackerHits_position_x[iHit] +
+            B0TrackerHits_position_y[iHit] * B0TrackerHits_position_y[iHit]
+         );
+
+         if(MCParticles_generatorStatus[pTagId] > 5999){
+            m_hZRHitRatio_All_BKG[4]->Fill(B0TrackerHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[4][9]++;
+            bIsBkg[4] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 4999){
+            m_hZRHitRatio_All_BKG[3]->Fill(B0TrackerHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[3][9]++;
+            bIsBkg[3] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 3999){
+            m_hZRHitRatio_All_BKG[2]->Fill(B0TrackerHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[2][9]++;
+            bIsBkg[2] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 2999){
+            m_hZRHitRatio_All_BKG[1]->Fill(B0TrackerHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[1][9]++;
+            bIsBkg[1] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 1999){
+            m_hZRHitRatio_All_BKG[0]->Fill(B0TrackerHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[0][9]++;
+            bIsBkg[0] = true;
+         }
+      }
+      for(size_t iBkg = 0; iBkg < 5; iBkg++){
+         if(bIsBkg[iBkg]) m_EveCountWithDetHits_Trk_BKG[iBkg] ->Fill(10);
+         m_HitsPerEveWithDetHits_Trk_BKG[iBkg]->Fill(10, eachBkgHitCountTrk[iBkg][9]);
+      }
+
+      for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+      for(size_t iHit = 0; iHit < DIRCBarHits_; iHit++){
+         Int_t pTagId = _DIRCBarHits_particle_index[iHit];
+         Double_t hitR = TMath::Sqrt(
+            DIRCBarHits_position_x[iHit] * DIRCBarHits_position_x[iHit] +
+            DIRCBarHits_position_y[iHit] * DIRCBarHits_position_y[iHit]
+         );
+
+         if(MCParticles_generatorStatus[pTagId] > 5999){
+            m_hZRHitRatio_All_BKG[4]->Fill(DIRCBarHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[4][10]++;
+            bIsBkg[4] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 4999){
+            m_hZRHitRatio_All_BKG[3]->Fill(DIRCBarHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[3][10]++;
+            bIsBkg[3] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 3999){
+            m_hZRHitRatio_All_BKG[2]->Fill(DIRCBarHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[2][10]++;
+            bIsBkg[2] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 2999){
+            m_hZRHitRatio_All_BKG[1]->Fill(DIRCBarHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[1][10]++;
+            bIsBkg[1] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 1999){
+            m_hZRHitRatio_All_BKG[0]->Fill(DIRCBarHits_position_z[iHit], hitR);
+            eachBkgHitCountTrk[0][10]++;
+            bIsBkg[0] = true;
+         }
+      }
+      for(size_t iBkg = 0; iBkg < 5; iBkg++){
+         if(bIsBkg[iBkg]) m_EveCountWithDetHits_Trk_BKG[iBkg] ->Fill(11);
+         m_HitsPerEveWithDetHits_Trk_BKG[iBkg]->Fill(11, eachBkgHitCountTrk[iBkg][10]);
+      }
+      for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+         for(size_t iHit = 0; iHit < DRICHHits_; iHit++){
+            Int_t pTagId = _DRICHHits_particle_index[iHit];
+            Double_t hitR = TMath::Sqrt(
+               DRICHHits_position_x[iHit] * DRICHHits_position_x[iHit] +
+               DRICHHits_position_y[iHit] * DRICHHits_position_y[iHit]
+            );
+
+            if(MCParticles_generatorStatus[pTagId] > 5999){
+               m_hZRHitRatio_All_BKG[4]->Fill(DRICHHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[4][11]++;
+               bIsBkg[4] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 4999){
+               m_hZRHitRatio_All_BKG[3]->Fill(DRICHHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[3][11]++;
+               bIsBkg[3] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 3999){
+               m_hZRHitRatio_All_BKG[2]->Fill(DRICHHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[2][11]++;
+               bIsBkg[2] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 2999){
+               m_hZRHitRatio_All_BKG[1]->Fill(DRICHHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[1][11]++;
+               bIsBkg[1] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 1999){
+               m_hZRHitRatio_All_BKG[0]->Fill(DRICHHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[0][11]++;
+               bIsBkg[0] = true;
+            }
+         }
+         for(size_t iBkg = 0; iBkg < 5; iBkg++){
+            if(bIsBkg[iBkg]) m_EveCountWithDetHits_Trk_BKG[iBkg] ->Fill(12);
+            m_HitsPerEveWithDetHits_Trk_BKG[iBkg]->Fill(12, eachBkgHitCountTrk[iBkg][11]);
+         }
+
+
+         for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+         for(size_t iHit = 0; iHit < ForwardOffMTrackerHits_; iHit++){
+            Int_t pTagId = _ForwardOffMTrackerHits_particle_index[iHit];
+            Double_t hitR = TMath::Sqrt(
+               ForwardOffMTrackerHits_position_x[iHit] * ForwardOffMTrackerHits_position_x[iHit] +
+               ForwardOffMTrackerHits_position_y[iHit] * ForwardOffMTrackerHits_position_y[iHit]
+            );
+
+            if(MCParticles_generatorStatus[pTagId] > 5999){
+               m_hZRHitRatio_All_BKG[4]->Fill(ForwardOffMTrackerHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[4][12]++;
+               bIsBkg[4] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 4999){
+               m_hZRHitRatio_All_BKG[3]->Fill(ForwardOffMTrackerHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[3][12]++;
+               bIsBkg[3] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 3999){
+               m_hZRHitRatio_All_BKG[2]->Fill(ForwardOffMTrackerHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[2][12]++;
+               bIsBkg[2] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 2999){
+               m_hZRHitRatio_All_BKG[1]->Fill(ForwardOffMTrackerHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[1][12]++;
+               bIsBkg[1] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 1999){
+               m_hZRHitRatio_All_BKG[0]->Fill(ForwardOffMTrackerHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[0][12]++;
+               bIsBkg[0] = true;
+            }
+         }
+         for(size_t iBkg = 0; iBkg < 5; iBkg++){
+            if(bIsBkg[iBkg]) m_EveCountWithDetHits_Trk_BKG[iBkg] ->Fill(13);
+            m_HitsPerEveWithDetHits_Trk_BKG[iBkg]->Fill(13, eachBkgHitCountTrk[iBkg][12]);
+         }
+
+         for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+         for(size_t iHit = 0; iHit < ForwardRomanPotHits_; iHit++){
+            Int_t pTagId = _ForwardRomanPotHits_particle_index[iHit];
+            Double_t hitR = TMath::Sqrt(
+               ForwardRomanPotHits_position_x[iHit] * ForwardRomanPotHits_position_x[iHit] +
+               ForwardRomanPotHits_position_y[iHit] * ForwardRomanPotHits_position_y[iHit]
+            );
+
+            if(MCParticles_generatorStatus[pTagId] > 5999){
+               m_hZRHitRatio_All_BKG[4]->Fill(ForwardRomanPotHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[4][13]++;
+               bIsBkg[4] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 4999){
+               m_hZRHitRatio_All_BKG[3]->Fill(ForwardRomanPotHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[3][13]++;
+               bIsBkg[3] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 3999){
+               m_hZRHitRatio_All_BKG[2]->Fill(ForwardRomanPotHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[2][13]++;
+               bIsBkg[2] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 2999){
+               m_hZRHitRatio_All_BKG[1]->Fill(ForwardRomanPotHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[1][13]++;
+               bIsBkg[1] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 1999){
+               m_hZRHitRatio_All_BKG[0]->Fill(ForwardRomanPotHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[0][13]++;
+               bIsBkg[0] = true;
+            }
+         }
+         for(size_t iBkg = 0; iBkg < 5; iBkg++){
+            if(bIsBkg[iBkg]) m_EveCountWithDetHits_Trk_BKG[iBkg] ->Fill(14);
+            m_HitsPerEveWithDetHits_Trk_BKG[iBkg]->Fill(14, eachBkgHitCountTrk[iBkg][13]);
+         }
+
+
+         for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+         for(size_t iHit = 0; iHit < LumiSpecTrackerHits_; iHit++){
+            Int_t pTagId = _LumiSpecTrackerHits_particle_index[iHit];
+            Double_t hitR = TMath::Sqrt(
+               LumiSpecTrackerHits_position_x[iHit] * LumiSpecTrackerHits_position_x[iHit] +
+               LumiSpecTrackerHits_position_y[iHit] * LumiSpecTrackerHits_position_y[iHit]
+            );
+
+            if(MCParticles_generatorStatus[pTagId] > 5999){
+               m_hZRHitRatio_All_BKG[4]->Fill(LumiSpecTrackerHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[4][14]++;
+               bIsBkg[4] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 4999){
+               m_hZRHitRatio_All_BKG[3]->Fill(LumiSpecTrackerHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[3][14]++;
+               bIsBkg[3] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 3999){
+               m_hZRHitRatio_All_BKG[2]->Fill(LumiSpecTrackerHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[2][14]++;
+               bIsBkg[2] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 2999){
+               m_hZRHitRatio_All_BKG[1]->Fill(LumiSpecTrackerHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[1][14]++;
+               bIsBkg[1] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 1999){
+               m_hZRHitRatio_All_BKG[0]->Fill(LumiSpecTrackerHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[0][14]++;
+               bIsBkg[0] = true;
+            }
+         }
+         for(size_t iBkg = 0; iBkg < 5; iBkg++){
+            if(bIsBkg[iBkg]) m_EveCountWithDetHits_Trk_BKG[iBkg] ->Fill(15);
+            m_HitsPerEveWithDetHits_Trk_BKG[iBkg]->Fill(15, eachBkgHitCountTrk[iBkg][14]);
+         }
+
+         for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+         for(size_t iHit = 0; iHit < PFRICHHits_; iHit++){
+            Int_t pTagId = _PFRICHHits_particle_index[iHit];
+            Double_t hitR = TMath::Sqrt(
+               PFRICHHits_position_x[iHit] * PFRICHHits_position_x[iHit] +
+               PFRICHHits_position_y[iHit] * PFRICHHits_position_y[iHit]
+            );
+
+            if(MCParticles_generatorStatus[pTagId] > 5999){
+               m_hZRHitRatio_All_BKG[4]->Fill(PFRICHHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[4][15]++;
+               bIsBkg[4] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 4999){
+               m_hZRHitRatio_All_BKG[3]->Fill(PFRICHHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[3][15]++;
+               bIsBkg[3] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 3999){
+               m_hZRHitRatio_All_BKG[2]->Fill(PFRICHHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[2][15]++;
+               bIsBkg[2] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 2999){
+               m_hZRHitRatio_All_BKG[1]->Fill(PFRICHHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[1][15]++;
+               bIsBkg[1] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 1999){
+               m_hZRHitRatio_All_BKG[0]->Fill(PFRICHHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[0][15]++;
+               bIsBkg[0] = true;
+            }
+         }
+         for(size_t iBkg = 0; iBkg < 5; iBkg++){
+            if(bIsBkg[iBkg]) m_EveCountWithDetHits_Trk_BKG[iBkg] ->Fill(16);
+            m_HitsPerEveWithDetHits_Trk_BKG[iBkg]->Fill(16, eachBkgHitCountTrk[iBkg][15]);
+         }
+
+         for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+         for(size_t iHit = 0; iHit < TaggerTrackerHits_; iHit++){
+            Int_t pTagId = _TaggerTrackerHits_particle_index[iHit];
+            Double_t hitR = TMath::Sqrt(
+               TaggerTrackerHits_position_x[iHit] * TaggerTrackerHits_position_x[iHit] +
+               TaggerTrackerHits_position_y[iHit] * TaggerTrackerHits_position_y[iHit]
+            );
+
+            if(MCParticles_generatorStatus[pTagId] > 5999){
+               m_hZRHitRatio_All_BKG[4]->Fill(TaggerTrackerHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[4][16]++;
+               bIsBkg[4] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 4999){
+               m_hZRHitRatio_All_BKG[3]->Fill(TaggerTrackerHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[3][16]++;
+               bIsBkg[3] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 3999){
+               m_hZRHitRatio_All_BKG[2]->Fill(TaggerTrackerHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[2][16]++;
+               bIsBkg[2] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 2999){
+               m_hZRHitRatio_All_BKG[1]->Fill(TaggerTrackerHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[1][16]++;
+               bIsBkg[1] = true;
+            }else if(MCParticles_generatorStatus[pTagId] > 1999){
+               m_hZRHitRatio_All_BKG[0]->Fill(TaggerTrackerHits_position_z[iHit], hitR);
+               eachBkgHitCountTrk[0][16]++;
+               bIsBkg[0] = true;
+            }
+         }
+         for(size_t iBkg = 0; iBkg < 5; iBkg++){
+            if(bIsBkg[iBkg]) m_EveCountWithDetHits_Trk_BKG[iBkg] ->Fill(17);
+            m_HitsPerEveWithDetHits_Trk_BKG[iBkg]->Fill(17, eachBkgHitCountTrk[iBkg][16]);
+         }
+
+
+   // Calorimeter contributions: use contribution indices and Cal histograms
+   for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+   for(size_t iHit = 0; iHit < B0ECalHits_; iHit++){
+      Int_t pTagId = _B0ECalHitsContributions_particle_index[iHit];
+      Double_t hitR = TMath::Sqrt(
+         B0ECalHits_position_x[iHit] * B0ECalHits_position_x[iHit] +
+         B0ECalHits_position_y[iHit] * B0ECalHits_position_y[iHit]
+      );
+
+      if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_hZRHitRatio_All_BKG[4]->Fill(B0ECalHits_position_z[iHit], hitR);
+         bIsBkg[4] = true;
+         eachBkgHitCountCal[4][0]++;
+      }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_hZRHitRatio_All_BKG[3]->Fill(B0ECalHits_position_z[iHit], hitR);
+         bIsBkg[3] = true;
+         eachBkgHitCountCal[3][0]++;
+      }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_hZRHitRatio_All_BKG[2]->Fill(B0ECalHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[2][0]++;
+         bIsBkg[2] = true;
+      }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_hZRHitRatio_All_BKG[1]->Fill(B0ECalHits_position_z[iHit], hitR);
+         bIsBkg[1] = true;
+         eachBkgHitCountCal[1][0]++;
+      }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_hZRHitRatio_All_BKG[0]->Fill(B0ECalHits_position_z[iHit], hitR);
+         bIsBkg[0] = true;
+         eachBkgHitCountCal[0][0]++;
+      }
+
+   }
+   for(size_t iBkg = 0; iBkg < 5; iBkg++){
+      if(bIsBkg[iBkg]) m_EveCountWithDetHits_Cal_BKG[iBkg] ->Fill(1);
+      m_HitsPerEveWithDetHits_Cal_BKG[iBkg]->Fill(1, eachBkgHitCountCal[iBkg][0]);
+   }
+
+
+      for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+      for(size_t iHit = 0; iHit < EcalBarrelImagingHits_; iHit++){
+         Int_t pTagId = _EcalBarrelImagingHitsContributions_particle_index[iHit];
+         Double_t hitR = TMath::Sqrt(
+         EcalBarrelImagingHits_position_x[iHit] * EcalBarrelImagingHits_position_x[iHit] +
+         EcalBarrelImagingHits_position_y[iHit] * EcalBarrelImagingHits_position_y[iHit]
+         );
+
+         if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_hZRHitRatio_All_BKG[4]->Fill(EcalBarrelImagingHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[4][1]++;
+         bIsBkg[4] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_hZRHitRatio_All_BKG[3]->Fill(EcalBarrelImagingHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[3][1]++;
+         bIsBkg[3] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_hZRHitRatio_All_BKG[2]->Fill(EcalBarrelImagingHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[2][1]++;
+         bIsBkg[2] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_hZRHitRatio_All_BKG[1]->Fill(EcalBarrelImagingHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[1][1]++;
+         bIsBkg[1] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_hZRHitRatio_All_BKG[0]->Fill(EcalBarrelImagingHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[0][1]++;
+         bIsBkg[0] = true;
+         }
+      }
+      for(size_t iBkg = 0; iBkg < 5; iBkg++){
+         if(bIsBkg[iBkg]) m_EveCountWithDetHits_Cal_BKG[iBkg] ->Fill(2);
+         m_HitsPerEveWithDetHits_Cal_BKG[iBkg]->Fill(2, eachBkgHitCountCal[iBkg][1]);
+      }
+
+      for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+      for(size_t iHit = 0; iHit < EcalBarrelScFiHits_; iHit++){
+         Int_t pTagId = _EcalBarrelScFiHitsContributions_particle_index[iHit];
+         Double_t hitR = TMath::Sqrt(
+         EcalBarrelScFiHits_position_x[iHit] * EcalBarrelScFiHits_position_x[iHit] +
+         EcalBarrelScFiHits_position_y[iHit] * EcalBarrelScFiHits_position_y[iHit]
+         );
+
+         if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_hZRHitRatio_All_BKG[4]->Fill(EcalBarrelScFiHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[4][2]++;
+         bIsBkg[4] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_hZRHitRatio_All_BKG[3]->Fill(EcalBarrelScFiHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[3][2]++;
+         bIsBkg[3] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_hZRHitRatio_All_BKG[2]->Fill(EcalBarrelScFiHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[2][2]++;
+         bIsBkg[2] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_hZRHitRatio_All_BKG[1]->Fill(EcalBarrelScFiHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[1][2]++;
+         bIsBkg[1] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_hZRHitRatio_All_BKG[0]->Fill(EcalBarrelScFiHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[0][2]++;
+         bIsBkg[0] = true;
+         }
+         
+      }
+      for(size_t iBkg = 0; iBkg < 5; iBkg++){
+         if(bIsBkg[iBkg]) m_EveCountWithDetHits_Cal_BKG[iBkg] ->Fill(3);
+         m_HitsPerEveWithDetHits_Cal_BKG[iBkg]->Fill(3, eachBkgHitCountCal[iBkg][2]);
+      }
+
+      for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+      for(size_t iHit = 0; iHit < EcalEndcapNHits_; iHit++){
+         Int_t pTagId = _EcalEndcapNHitsContributions_particle_index[iHit];
+         Double_t hitR = TMath::Sqrt(
+         EcalEndcapNHits_position_x[iHit] * EcalEndcapNHits_position_x[iHit] +
+         EcalEndcapNHits_position_y[iHit] * EcalEndcapNHits_position_y[iHit]
+         );
+
+         if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_hZRHitRatio_All_BKG[4]->Fill(EcalEndcapNHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[4][3]++;
+         bIsBkg[4] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_hZRHitRatio_All_BKG[3]->Fill(EcalEndcapNHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[3][3]++;
+         bIsBkg[3] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_hZRHitRatio_All_BKG[2]->Fill(EcalEndcapNHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[2][3]++;
+         bIsBkg[2] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_hZRHitRatio_All_BKG[1]->Fill(EcalEndcapNHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[1][3]++;
+         bIsBkg[1] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_hZRHitRatio_All_BKG[0]->Fill(EcalEndcapNHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[0][3]++;
+         bIsBkg[0] = true;
+         }
+      }
+      for(size_t iBkg = 0; iBkg < 5; iBkg++){
+         if(bIsBkg[iBkg]) m_EveCountWithDetHits_Cal_BKG[iBkg] ->Fill(4);
+         m_HitsPerEveWithDetHits_Cal_BKG[iBkg]->Fill(4, eachBkgHitCountCal[iBkg][3]);
+      }
+
+      for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+      for(size_t iHit = 0; iHit < EcalEndcapPHits_; iHit++){
+         Int_t pTagId = _EcalEndcapPHitsContributions_particle_index[iHit];
+         Double_t hitR = TMath::Sqrt(
+         EcalEndcapPHits_position_x[iHit] * EcalEndcapPHits_position_x[iHit] +
+         EcalEndcapPHits_position_y[iHit] * EcalEndcapPHits_position_y[iHit]
+         );
+
+         if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_hZRHitRatio_All_BKG[4]->Fill(EcalEndcapPHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[4][4]++;
+         bIsBkg[4] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_hZRHitRatio_All_BKG[3]->Fill(EcalEndcapPHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[3][4]++;
+         bIsBkg[3] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_hZRHitRatio_All_BKG[2]->Fill(EcalEndcapPHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[2][4]++;
+         bIsBkg[2] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_hZRHitRatio_All_BKG[1]->Fill(EcalEndcapPHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[1][4]++;
+         bIsBkg[1] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_hZRHitRatio_All_BKG[0]->Fill(EcalEndcapPHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[0][4]++;
+         bIsBkg[0] = true;
+         }
+      }
+      for(size_t iBkg = 0; iBkg < 5; iBkg++){
+         if(bIsBkg[iBkg]) m_EveCountWithDetHits_Cal_BKG[iBkg] ->Fill(5);
+         m_HitsPerEveWithDetHits_Cal_BKG[iBkg]->Fill(5, eachBkgHitCountCal[iBkg][4]);
+      }
+
+      for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+      for(size_t iHit = 0; iHit < EcalFarForwardZDCHits_; iHit++){
+         Int_t pTagId = _EcalFarForwardZDCHitsContributions_particle_index[iHit];
+         Double_t hitR = TMath::Sqrt(
+         EcalFarForwardZDCHits_position_x[iHit] * EcalFarForwardZDCHits_position_x[iHit] +
+         EcalFarForwardZDCHits_position_y[iHit] * EcalFarForwardZDCHits_position_y[iHit]
+         );
+
+         if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_hZRHitRatio_All_BKG[4]->Fill(EcalFarForwardZDCHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[4][5]++;
+         bIsBkg[4] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_hZRHitRatio_All_BKG[3]->Fill(EcalFarForwardZDCHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[3][5]++;
+         bIsBkg[3] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_hZRHitRatio_All_BKG[2]->Fill(EcalFarForwardZDCHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[2][5]++;
+         bIsBkg[2] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_hZRHitRatio_All_BKG[1]->Fill(EcalFarForwardZDCHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[1][5]++;
+         bIsBkg[1] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_hZRHitRatio_All_BKG[0]->Fill(EcalFarForwardZDCHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[0][5]++;
+         bIsBkg[0] = true;
+         }
+      }
+      for(size_t iBkg = 0; iBkg < 5; iBkg++){
+         if(bIsBkg[iBkg]) m_EveCountWithDetHits_Cal_BKG[iBkg] ->Fill(6);
+         m_HitsPerEveWithDetHits_Cal_BKG[iBkg]->Fill(6, eachBkgHitCountCal[iBkg][5]);
+      }
+      for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+      for(size_t iHit = 0; iHit < EcalLumiSpecHits_; iHit++){
+         Int_t pTagId = _EcalLumiSpecHitsContributions_particle_index[iHit];
+         Double_t hitR = TMath::Sqrt(
+         EcalLumiSpecHits_position_x[iHit] * EcalLumiSpecHits_position_x[iHit] +
+         EcalLumiSpecHits_position_y[iHit] * EcalLumiSpecHits_position_y[iHit]
+         );
+
+         if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_hZRHitRatio_All_BKG[4]->Fill(EcalLumiSpecHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[4][6]++;
+         bIsBkg[4] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_hZRHitRatio_All_BKG[3]->Fill(EcalLumiSpecHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[3][6]++;
+         bIsBkg[3] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_hZRHitRatio_All_BKG[2]->Fill(EcalLumiSpecHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[2][6]++;
+         bIsBkg[2] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_hZRHitRatio_All_BKG[1]->Fill(EcalLumiSpecHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[1][6]++;
+         bIsBkg[1] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_hZRHitRatio_All_BKG[0]->Fill(EcalLumiSpecHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[0][6]++;
+         bIsBkg[0] = true;
+         }
+      }
+      for(size_t iBkg = 0; iBkg < 5; iBkg++){
+         if(bIsBkg[iBkg]) m_EveCountWithDetHits_Cal_BKG[iBkg] ->Fill(7);
+         m_HitsPerEveWithDetHits_Cal_BKG[iBkg]->Fill(7, eachBkgHitCountCal[iBkg][6]);
+      }
+
+      for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+      for(size_t iHit = 0; iHit < HcalBarrelHits_; iHit++){
+         Int_t pTagId = _HcalBarrelHitsContributions_particle_index[iHit];
+         Double_t hitR = TMath::Sqrt(
+         HcalBarrelHits_position_x[iHit] * HcalBarrelHits_position_x[iHit] +
+         HcalBarrelHits_position_y[iHit] * HcalBarrelHits_position_y[iHit]
+         );
+
+         if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_hZRHitRatio_All_BKG[4]->Fill(HcalBarrelHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[4][7]++;
+         bIsBkg[4] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_hZRHitRatio_All_BKG[3]->Fill(HcalBarrelHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[3][7]++;
+         bIsBkg[3] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_hZRHitRatio_All_BKG[2]->Fill(HcalBarrelHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[2][7]++;
+         bIsBkg[2] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_hZRHitRatio_All_BKG[1]->Fill(HcalBarrelHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[1][7]++;
+         bIsBkg[1] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_hZRHitRatio_All_BKG[0]->Fill(HcalBarrelHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[0][7]++;
+         bIsBkg[0] = true;
+         }
+      }
+      for(size_t iBkg = 0; iBkg < 5; iBkg++){
+         if(bIsBkg[iBkg]) m_EveCountWithDetHits_Cal_BKG[iBkg] ->Fill(8);
+         m_HitsPerEveWithDetHits_Cal_BKG[iBkg]->Fill(8, eachBkgHitCountCal[iBkg][7]);
+      }
+
+      for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+      for(size_t iHit = 0; iHit < HcalEndcapNHits_; iHit++){
+         Int_t pTagId = _HcalEndcapNHitsContributions_particle_index[iHit];
+         Double_t hitR = TMath::Sqrt(
+         HcalEndcapNHits_position_x[iHit] * HcalEndcapNHits_position_x[iHit] +
+         HcalEndcapNHits_position_y[iHit] * HcalEndcapNHits_position_y[iHit]
+         );
+
+         if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_hZRHitRatio_All_BKG[4]->Fill(HcalEndcapNHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[4][8]++;
+         bIsBkg[4] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_hZRHitRatio_All_BKG[3]->Fill(HcalEndcapNHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[3][8]++;
+         bIsBkg[3] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_hZRHitRatio_All_BKG[2]->Fill(HcalEndcapNHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[2][8]++;
+         bIsBkg[2] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_hZRHitRatio_All_BKG[1]->Fill(HcalEndcapNHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[1][8]++;
+         bIsBkg[1] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_hZRHitRatio_All_BKG[0]->Fill(HcalEndcapNHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[0][8]++;
+         bIsBkg[0] = true;
+         }
+      }
+      for(size_t iBkg = 0; iBkg < 5; iBkg++){
+         if(bIsBkg[iBkg]) m_EveCountWithDetHits_Cal_BKG[iBkg] ->Fill(9);
+         m_HitsPerEveWithDetHits_Cal_BKG[iBkg]->Fill(9, eachBkgHitCountCal[iBkg][8]);
+      }
+
+      for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+      for(size_t iHit = 0; iHit < HcalEndcapPInsertHits_; iHit++){
+         Int_t pTagId = _HcalEndcapPInsertHitsContributions_particle_index[iHit];
+         Double_t hitR = TMath::Sqrt(
+         HcalEndcapPInsertHits_position_x[iHit] * HcalEndcapPInsertHits_position_x[iHit] +
+         HcalEndcapPInsertHits_position_y[iHit] * HcalEndcapPInsertHits_position_y[iHit]
+         );
+
+         if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_hZRHitRatio_All_BKG[4]->Fill(HcalEndcapPInsertHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[4][9]++;
+         bIsBkg[4] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_hZRHitRatio_All_BKG[3]->Fill(HcalEndcapPInsertHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[3][9]++;
+         bIsBkg[3] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_hZRHitRatio_All_BKG[2]->Fill(HcalEndcapPInsertHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[2][9]++;
+         bIsBkg[2] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_hZRHitRatio_All_BKG[1]->Fill(HcalEndcapPInsertHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[1][9]++;
+         bIsBkg[1] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_hZRHitRatio_All_BKG[0]->Fill(HcalEndcapPInsertHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[0][9]++;
+         bIsBkg[0] = true;
+         }
+      }
+      for(size_t iBkg = 0; iBkg < 5; iBkg++){
+         if(bIsBkg[iBkg]) m_EveCountWithDetHits_Cal_BKG[iBkg] ->Fill(10);
+         m_HitsPerEveWithDetHits_Cal_BKG[iBkg]->Fill(10, eachBkgHitCountCal[iBkg][9]);
+      }
+
+      for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+      for(size_t iHit = 0; iHit < HcalFarForwardZDCHits_; iHit++){
+         Int_t pTagId = _HcalFarForwardZDCHitsContributions_particle_index[iHit];
+         Double_t hitR = TMath::Sqrt(
+         HcalFarForwardZDCHits_position_x[iHit] * HcalFarForwardZDCHits_position_x[iHit] +
+         HcalFarForwardZDCHits_position_y[iHit] * HcalFarForwardZDCHits_position_y[iHit]
+         );
+
+         if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_hZRHitRatio_All_BKG[4]->Fill(HcalFarForwardZDCHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[4][10]++;
+         bIsBkg[4] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_hZRHitRatio_All_BKG[3]->Fill(HcalFarForwardZDCHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[3][10]++;
+         bIsBkg[3] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_hZRHitRatio_All_BKG[2]->Fill(HcalFarForwardZDCHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[2][10]++;
+         bIsBkg[2] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_hZRHitRatio_All_BKG[1]->Fill(HcalFarForwardZDCHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[1][10]++;
+         bIsBkg[1] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_hZRHitRatio_All_BKG[0]->Fill(HcalFarForwardZDCHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[0][10]++;
+         bIsBkg[0] = true;
+         }
+      }
+      for(size_t iBkg = 0; iBkg < 5; iBkg++){
+         if(bIsBkg[iBkg]) m_EveCountWithDetHits_Cal_BKG[iBkg] ->Fill(11);
+         m_HitsPerEveWithDetHits_Cal_BKG[iBkg]->Fill(11, eachBkgHitCountCal[iBkg][10]);
+      }
+
+      for(size_t iBkg = 0; iBkg < 5; iBkg++) bIsBkg[iBkg] = false;
+      for(size_t iHit = 0; iHit < LFHCALHits_; iHit++){
+         Int_t pTagId = _LFHCALHitsContributions_particle_index[iHit];
+         Double_t hitR = TMath::Sqrt(
+         LFHCALHits_position_x[iHit] * LFHCALHits_position_x[iHit] +
+         LFHCALHits_position_y[iHit] * LFHCALHits_position_y[iHit]
+         );
+
+         if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_hZRHitRatio_All_BKG[4]->Fill(LFHCALHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[4][11]++;
+         bIsBkg[4] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_hZRHitRatio_All_BKG[3]->Fill(LFHCALHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[3][11]++;
+         bIsBkg[3] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_hZRHitRatio_All_BKG[2]->Fill(LFHCALHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[2][11]++;
+         bIsBkg[2] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_hZRHitRatio_All_BKG[1]->Fill(LFHCALHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[1][11]++;
+         bIsBkg[1] = true;
+         }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_hZRHitRatio_All_BKG[0]->Fill(LFHCALHits_position_z[iHit], hitR);
+         eachBkgHitCountCal[0][11]++;
+         bIsBkg[0] = true;
+         }
+      }
+      for(size_t iBkg = 0; iBkg < 5; iBkg++){
+         if(bIsBkg[iBkg]) m_EveCountWithDetHits_Cal_BKG[iBkg] ->Fill(12);
+         m_HitsPerEveWithDetHits_Cal_BKG[iBkg]->Fill(12, eachBkgHitCountCal[iBkg][11]);
+      }
 
 
 }
 
 
 
+void McPsCheck::countTrkDetHits(){
+   // std::cout << "VertexBarrelHits_ = " << VertexBarrelHits_ << ", SiBarrelHits_ = " << SiBarrelHits_ << ", B0TrackerHits_ = " << B0TrackerHits_ << ", TrackerEndcapHits_ = " << TrackerEndcapHits_ << ", ForwardOffMTrackerHits_ = " << ForwardOffMTrackerHits_ << ", MPGDBarrelHits_ = " << MPGDBarrelHits_ << std::endl;  // ChecKuma
+
+   // for(size_t iVtxHitP = 0; iVtxHitP < _VertexBarrelHits_particle_; iVtxHitP++){
+   //    Int_t iMcP = _VertexBarrelHits_particle_index[iVtxHitP];
+   //    std::cout << "iMcP : " << iMcP << ": MCParticles_generatorStatus = " << MCParticles_generatorStatus[iMcP] << ", PID = " << MCParticles_PDG[iMcP] << std::endl;  // ChecKuma
+
+   // }
 
 
+   if(VertexBarrelHits_){
+      numOfEventsForEachTrkDet[0]++;
+      m_EveCountWithDetHits_Trk->Fill(1);
+      m_HitsPerEveWithDetHits_Trk->Fill(VertexBarrelHits_);
+   }
+
+   if(SiBarrelHits_){
+      numOfEventsForEachTrkDet[1]++;
+      m_EveCountWithDetHits_Trk->Fill(2);
+      m_HitsPerEveWithDetHits_Trk->Fill(SiBarrelHits_);
+   }
+
+   if(TrackerEndcapHits_){
+      numOfEventsForEachTrkDet[2]++;
+      m_EveCountWithDetHits_Trk->Fill(3);
+      m_HitsPerEveWithDetHits_Trk->Fill(TrackerEndcapHits_);
+   }
+
+   if(MPGDBarrelHits_){
+      numOfEventsForEachTrkDet[3]++;
+      m_EveCountWithDetHits_Trk->Fill(4);
+      m_HitsPerEveWithDetHits_Trk->Fill(MPGDBarrelHits_);
+   }
+
+   if(OuterMPGDBarrelHits_){
+      numOfEventsForEachTrkDet[4]++;
+      m_EveCountWithDetHits_Trk->Fill(5);
+      m_HitsPerEveWithDetHits_Trk->Fill(OuterMPGDBarrelHits_);
+   }
+
+   if(ForwardMPGDEndcapHits_){
+      numOfEventsForEachTrkDet[5]++;
+      m_EveCountWithDetHits_Trk->Fill(6);
+      m_HitsPerEveWithDetHits_Trk->Fill(ForwardMPGDEndcapHits_);
+   }
+
+   if(BackwardMPGDEndcapHits_){
+      numOfEventsForEachTrkDet[6]++;
+      m_EveCountWithDetHits_Trk->Fill(7);
+      m_HitsPerEveWithDetHits_Trk->Fill(BackwardMPGDEndcapHits_);
+   }
+
+   if(TOFBarrelHits_){
+      numOfEventsForEachTrkDet[7]++;
+      m_EveCountWithDetHits_Trk->Fill(8);
+      m_HitsPerEveWithDetHits_Trk->Fill(TOFBarrelHits_);
+   }
+
+   if(TOFEndcapHits_){
+      numOfEventsForEachTrkDet[8]++;
+      m_EveCountWithDetHits_Trk->Fill(9);
+      m_HitsPerEveWithDetHits_Trk->Fill(TOFEndcapHits_);
+   }
+
+   if(B0TrackerHits_){
+      numOfEventsForEachTrkDet[9]++;
+      m_EveCountWithDetHits_Trk->Fill(10);
+      m_HitsPerEveWithDetHits_Trk->Fill(B0TrackerHits_);
+   }
+
+   if(DIRCBarHits_){
+      numOfEventsForEachTrkDet[10]++;
+      m_EveCountWithDetHits_Trk->Fill(11);
+      m_HitsPerEveWithDetHits_Trk->Fill(DIRCBarHits_);
+   }
+
+   if(DRICHHits_){
+      numOfEventsForEachTrkDet[11]++;
+      m_EveCountWithDetHits_Trk->Fill(12);
+      m_HitsPerEveWithDetHits_Trk->Fill(DRICHHits_);
+   }
+
+   if(ForwardOffMTrackerHits_){
+      numOfEventsForEachTrkDet[12]++;
+      m_EveCountWithDetHits_Trk->Fill(13);
+      m_HitsPerEveWithDetHits_Trk->Fill(ForwardOffMTrackerHits_);
+   }
+
+   if(ForwardRomanPotHits_){
+      numOfEventsForEachTrkDet[13]++;
+      m_EveCountWithDetHits_Trk->Fill(14);
+      m_HitsPerEveWithDetHits_Trk->Fill(ForwardRomanPotHits_);
+   }
+
+   if(LumiSpecTrackerHits_){
+      numOfEventsForEachTrkDet[14]++;
+      m_EveCountWithDetHits_Trk->Fill(15);
+      m_HitsPerEveWithDetHits_Trk->Fill(LumiSpecTrackerHits_);
+   }
+
+   if(PFRICHHits_){
+      numOfEventsForEachTrkDet[15]++;
+      m_EveCountWithDetHits_Trk->Fill(16);
+      m_HitsPerEveWithDetHits_Trk->Fill(PFRICHHits_);
+   }
+
+   if(TaggerTrackerHits_){
+      numOfEventsForEachTrkDet[16]++;
+      m_EveCountWithDetHits_Trk->Fill(17);
+      m_HitsPerEveWithDetHits_Trk->Fill(TaggerTrackerHits_);
+   }
+
+}
+
+
+void McPsCheck::countCalDetHits(){
+   if(B0ECalHits_){
+      numOfEventsForEachCalDet[0]++;
+      m_EveCountWithDetHits_Cal->Fill(1);
+      m_HitsPerEveWithDetHits_Cal->Fill(B0ECalHits_);
+   }
+
+   if(EcalBarrelImagingHits_){
+      numOfEventsForEachCalDet[1]++;
+      m_EveCountWithDetHits_Cal->Fill(2);
+      m_HitsPerEveWithDetHits_Cal->Fill(EcalBarrelImagingHits_);
+   }
+
+   if(EcalBarrelScFiHits_){
+      numOfEventsForEachCalDet[2]++;
+      m_EveCountWithDetHits_Cal->Fill(3);
+      m_HitsPerEveWithDetHits_Cal->Fill(EcalBarrelScFiHits_);
+   }
+
+   if(EcalEndcapNHits_){
+      numOfEventsForEachCalDet[3]++;
+      m_EveCountWithDetHits_Cal->Fill(4);
+      m_HitsPerEveWithDetHits_Cal->Fill(EcalEndcapNHits_);
+   }
+
+   if(EcalEndcapPHits_){
+      numOfEventsForEachCalDet[4]++;
+      m_EveCountWithDetHits_Cal->Fill(5);
+      m_HitsPerEveWithDetHits_Cal->Fill(EcalEndcapPHits_);
+   }
+
+   if(EcalFarForwardZDCHits_){
+      numOfEventsForEachCalDet[5]++;
+      m_EveCountWithDetHits_Cal->Fill(6);
+      m_HitsPerEveWithDetHits_Cal->Fill(EcalFarForwardZDCHits_);
+   }
+
+   if(EcalLumiSpecHits_){
+      numOfEventsForEachCalDet[6]++;
+      m_EveCountWithDetHits_Cal->Fill(7);
+      m_HitsPerEveWithDetHits_Cal->Fill(EcalLumiSpecHits_);
+   }
+
+   if(HcalBarrelHits_){
+      numOfEventsForEachCalDet[7]++;
+      m_EveCountWithDetHits_Cal->Fill(8);
+      m_HitsPerEveWithDetHits_Cal->Fill(HcalBarrelHits_);
+   }
+
+   if(HcalEndcapNHits_){
+      numOfEventsForEachCalDet[8]++;
+      m_EveCountWithDetHits_Cal->Fill(9);
+      m_HitsPerEveWithDetHits_Cal->Fill(HcalEndcapNHits_);
+   }
+
+   if(HcalEndcapPInsertHits_){
+      numOfEventsForEachCalDet[9]++;
+      m_EveCountWithDetHits_Cal->Fill(10);
+      m_HitsPerEveWithDetHits_Cal->Fill(HcalEndcapPInsertHits_);
+   }
+
+   if(HcalFarForwardZDCHits_){
+      numOfEventsForEachCalDet[10]++;
+      m_EveCountWithDetHits_Cal->Fill(11);
+      m_HitsPerEveWithDetHits_Cal->Fill(HcalFarForwardZDCHits_);
+   }
+
+   if(LFHCALHits_){
+      numOfEventsForEachCalDet[11]++;
+      m_EveCountWithDetHits_Cal->Fill(12);
+      m_HitsPerEveWithDetHits_Cal->Fill(LFHCALHits_);
+   }
+
+}
 
 // === s === For Event Display =========== #########################################################
-void McPsCheck::recordEventsForED(){
-   m_iDisplayCount++;
+void McPsCheck::recordMCPsForED(){
+   bool speID = true;  // special ID for checking the contribution of specific particles, e.g. beam background particles with ID > 1999 and < 3000, or primary particles with ID = 1 or 2. Set to false to disable this special ID check and include all particles regardless of their ID.
    Event ev;
 
-   std::cout << "MCParticles_ =  " << MCParticles_ << std::endl;
+   // std::cout << "MCParticles_ =  " << MCParticles_ << std::endl;
 
    for (size_t i = 0; i < MCParticles_; ++i) {
 
@@ -137,6 +1504,9 @@ void McPsCheck::recordEventsForED(){
       // if(bBkgParent) continue;
       // == e == Particle Selection  #############################################
 
+      if((MCParticles_generatorStatus[i] < 1999 || MCParticles_generatorStatus[i] > 2999)) continue;
+      // if(1) continue;
+
       Particle p;
       p.vertex = {MCParticles_vertex_x[i], MCParticles_vertex_y[i], MCParticles_vertex_z[i]};
       p.momentum = {MCParticles_momentum_x[i], MCParticles_momentum_y[i], MCParticles_momentum_z[i]};
@@ -145,141 +1515,177 @@ void McPsCheck::recordEventsForED(){
       p.hasEndpoint = true;
       p.endpoint = {MCParticles_endpoint_x[i], MCParticles_endpoint_y[i], MCParticles_endpoint_z[i]};
 
-      std::cout << "Particle " << i << ": PDG = " << p.pdg << ", vertex = (" << p.vertex.x << ", " << p.vertex.y << ", " << p.vertex.z << "), momentum = (" << p.momentum.x << ", " << p.momentum.y << ", " << p.momentum.z << ")" << std::endl;
 
       ev.particles.push_back(p);
    }
    m_eventsForED.push_back(ev);
+}
 
+void McPsCheck::recordTrkHitsForED(){
+  std::vector<std::vector<Vec3> > vTrkDetsHits;
 
-   std::cout << "B0TrackerHits_ = " << B0TrackerHits_ << ", BackwardMPGDEndcapHits_ = " << BackwardMPGDEndcapHits_ << ", ForwardMPGDEndcapHits_ = " << ForwardMPGDEndcapHits_ << ", ForwardOffMTrackerHits_ = " << ForwardOffMTrackerHits_ << ", MPGDBarrelHits_ = " << MPGDBarrelHits_ << std::endl;
-
-   std::vector<std::vector<Vec3> > vTrkDetsHits;
-   std::vector<Vec3> vB0TrackerHits;
-   for(size_t iHit = 0; iHit < B0TrackerHits_; iHit++){
-      Vec3 hitPos = {B0TrackerHits_position_x[iHit], B0TrackerHits_position_y[iHit], B0TrackerHits_position_z[iHit]};
-      vB0TrackerHits.push_back(hitPos);
+   bool speID = true;  // special ID for checking the contribution of specific particles, e.g. beam background particles with ID > 1999 and < 3000, or primary particles with ID = 1 or 2. Set to false to disable this special ID check and include all hits regardless of their contributing particle's ID.
+   std::vector<Vec3> vVertexBarrelHits;
+   for(size_t iHit = 0; iHit < VertexBarrelHits_; iHit++){
+      if( (MCParticles_generatorStatus[_VertexBarrelHits_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_VertexBarrelHits_particle_index[iHit]] > 2999)) continue;
+      Vec3 hitPos = {VertexBarrelHits_position_x[iHit], VertexBarrelHits_position_y[iHit], VertexBarrelHits_position_z[iHit]};
+      vVertexBarrelHits.push_back(hitPos);
    }
-   vTrkDetsHits.push_back(vB0TrackerHits);
-
-   std::vector<Vec3> vBackwardMPGDEndcapHits;
-   for(size_t iHit = 0; iHit < BackwardMPGDEndcapHits_; iHit++){
-      Vec3 hitPos = {BackwardMPGDEndcapHits_position_x[iHit], BackwardMPGDEndcapHits_position_y[iHit], BackwardMPGDEndcapHits_position_z[iHit]};
-      vBackwardMPGDEndcapHits.push_back(hitPos);
-   }
-   vTrkDetsHits.push_back(vBackwardMPGDEndcapHits);
-
-   std::vector<Vec3> vDIRCBarHits;
-   for(size_t iHit = 0; iHit < DIRCBarHits_; iHit++){
-      Vec3 hitPos = {DIRCBarHits_position_x[iHit], DIRCBarHits_position_y[iHit], DIRCBarHits_position_z[iHit]};
-      vDIRCBarHits.push_back(hitPos);
-   }
-   vTrkDetsHits.push_back(vDIRCBarHits);
-
-   std::vector<Vec3> vDRICHHits;
-   for(size_t iHit = 0; iHit < DRICHHits_; iHit++){
-      Vec3 hitPos = {DRICHHits_position_x[iHit], DRICHHits_position_y[iHit], DRICHHits_position_z[iHit]};
-      vDRICHHits.push_back(hitPos);
-   }
-   vTrkDetsHits.push_back(vDRICHHits);
-
-   std::vector<Vec3> vForwardMPGDEndcapHits;
-   for(size_t iHit = 0; iHit < ForwardMPGDEndcapHits_; iHit++){
-      Vec3 hitPos = {ForwardMPGDEndcapHits_position_x[iHit], ForwardMPGDEndcapHits_position_y[iHit], ForwardMPGDEndcapHits_position_z[iHit]};
-      vForwardMPGDEndcapHits.push_back(hitPos);
-   }
-   vTrkDetsHits.push_back(vForwardMPGDEndcapHits);
-
-
-   std::vector<Vec3> vForwardOffMTrackerHits;
-   for(size_t iHit = 0; iHit < ForwardOffMTrackerHits_; iHit++){
-      Vec3 hitPos = {ForwardOffMTrackerHits_position_x[iHit], ForwardOffMTrackerHits_position_y[iHit], ForwardOffMTrackerHits_position_z[iHit]};
-      vForwardOffMTrackerHits.push_back(hitPos);
-   }
-   vTrkDetsHits.push_back(vForwardOffMTrackerHits);
-
-   std::vector<Vec3> vForwardRomanPotHits;
-   for(size_t iHit = 0; iHit < ForwardRomanPotHits_; iHit++){
-      Vec3 hitPos = {ForwardRomanPotHits_position_x[iHit], ForwardRomanPotHits_position_y[iHit], ForwardRomanPotHits_position_z[iHit]};
-      vForwardRomanPotHits.push_back(hitPos);
-   }
-   vTrkDetsHits.push_back(vForwardRomanPotHits);
-
-   std::vector<Vec3> vMPGDBarrelHits;
-   for(size_t iHit = 0; iHit < MPGDBarrelHits_; iHit++){
-      Vec3 hitPos = {MPGDBarrelHits_position_x[iHit], MPGDBarrelHits_position_y[iHit], MPGDBarrelHits_position_z[iHit]};
-      vMPGDBarrelHits.push_back(hitPos);
-   }
-   vTrkDetsHits.push_back(vMPGDBarrelHits);
-
-   std::vector<Vec3> vOuterMPGDBarrelHits;
-   for(size_t iHit = 0; iHit < OuterMPGDBarrelHits_; iHit++){
-      Vec3 hitPos = {OuterMPGDBarrelHits_position_x[iHit], OuterMPGDBarrelHits_position_y[iHit], OuterMPGDBarrelHits_position_z[iHit]};
-      vOuterMPGDBarrelHits.push_back(hitPos);
-   }
-   vTrkDetsHits.push_back(vOuterMPGDBarrelHits);
-
-   std::vector<Vec3> vPFRICHHits;
-   for(size_t iHit = 0; iHit < PFRICHHits_; iHit++){
-      Vec3 hitPos = {PFRICHHits_position_x[iHit], PFRICHHits_position_y[iHit], PFRICHHits_position_z[iHit]};
-      vPFRICHHits.push_back(hitPos);
-   }
-   vTrkDetsHits.push_back(vPFRICHHits);
+   vTrkDetsHits.push_back(vVertexBarrelHits);
 
 
    std::vector<Vec3> vSiBarrelHits;
    for(size_t iHit = 0; iHit < SiBarrelHits_; iHit++){
+      if( (MCParticles_generatorStatus[_SiBarrelHits_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_SiBarrelHits_particle_index[iHit]] > 2999)) continue;
       Vec3 hitPos = {SiBarrelHits_position_x[iHit], SiBarrelHits_position_y[iHit], SiBarrelHits_position_z[iHit]};
       vSiBarrelHits.push_back(hitPos);
    }
    vTrkDetsHits.push_back(vSiBarrelHits);
 
-
-   std::vector<Vec3> vTaggerTrackerHits;
-   for(size_t iHit = 0; iHit < TaggerTrackerHits_; iHit++){
-      Vec3 hitPos = {TaggerTrackerHits_position_x[iHit], TaggerTrackerHits_position_y[iHit], TaggerTrackerHits_position_z[iHit]};
-      vTaggerTrackerHits.push_back(hitPos);
-   }
-   vTrkDetsHits.push_back(vTaggerTrackerHits);
-
-
-   std::vector<Vec3> vTOFBarrelHits;
-   for(size_t iHit = 0; iHit < TOFBarrelHits_; iHit++){
-      Vec3 hitPos = {TOFBarrelHits_position_x[iHit], TOFBarrelHits_position_y[iHit], TOFBarrelHits_position_z[iHit]};
-      vTOFBarrelHits.push_back(hitPos);
-   }
-   vTrkDetsHits.push_back(vTOFBarrelHits);
-
-
-   std::vector<Vec3> vTOFEndcapHits;
-   for(size_t iHit = 0; iHit < TOFEndcapHits_; iHit++){
-      Vec3 hitPos = {TOFEndcapHits_position_x[iHit], TOFEndcapHits_position_y[iHit], TOFEndcapHits_position_z[iHit]};
-      vTOFEndcapHits.push_back(hitPos);
-   }
-   vTrkDetsHits.push_back(vTOFEndcapHits);
-
-
    std::vector<Vec3> vTrackerEndcapHits;
    for(size_t iHit = 0; iHit < TrackerEndcapHits_; iHit++){
+      if( (MCParticles_generatorStatus[_TrackerEndcapHits_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_TrackerEndcapHits_particle_index[iHit]] > 2999)) continue;
       Vec3 hitPos = {TrackerEndcapHits_position_x[iHit], TrackerEndcapHits_position_y[iHit], TrackerEndcapHits_position_z[iHit]};
       vTrackerEndcapHits.push_back(hitPos);
    }
    vTrkDetsHits.push_back(vTrackerEndcapHits);
 
 
-   std::vector<Vec3> vVertexBarrelHits;
-   for(size_t iHit = 0; iHit < VertexBarrelHits_; iHit++){
-      Vec3 hitPos = {VertexBarrelHits_position_x[iHit], VertexBarrelHits_position_y[iHit], VertexBarrelHits_position_z[iHit]};
-      vVertexBarrelHits.push_back(hitPos);
+   std::vector<Vec3> vMPGDBarrelHits;
+   for(size_t iHit = 0; iHit < MPGDBarrelHits_; iHit++){
+      if( (MCParticles_generatorStatus[_MPGDBarrelHits_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_MPGDBarrelHits_particle_index[iHit]] > 2999)) continue;
+      Vec3 hitPos = {MPGDBarrelHits_position_x[iHit], MPGDBarrelHits_position_y[iHit], MPGDBarrelHits_position_z[iHit]};
+      vMPGDBarrelHits.push_back(hitPos);
    }
-   vTrkDetsHits.push_back(vVertexBarrelHits);
+   vTrkDetsHits.push_back(vMPGDBarrelHits);
 
-   m_vRecordedTrackDetHits.push_back(vTrkDetsHits);
 
+   std::vector<Vec3> vOuterMPGDBarrelHits;
+   for(size_t iHit = 0; iHit < OuterMPGDBarrelHits_; iHit++){
+      if( (MCParticles_generatorStatus[_OuterMPGDBarrelHits_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_OuterMPGDBarrelHits_particle_index[iHit]] > 2999)) continue;
+      Vec3 hitPos = {OuterMPGDBarrelHits_position_x[iHit], OuterMPGDBarrelHits_position_y[iHit], OuterMPGDBarrelHits_position_z[iHit]};
+      vOuterMPGDBarrelHits.push_back(hitPos);
+   }
+   vTrkDetsHits.push_back(vOuterMPGDBarrelHits);
+   
+
+   std::vector<Vec3> vForwardMPGDEndcapHits;
+   for(size_t iHit = 0; iHit < ForwardMPGDEndcapHits_; iHit++){
+      if( (MCParticles_generatorStatus[_ForwardMPGDEndcapHits_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_ForwardMPGDEndcapHits_particle_index[iHit]] > 2999)) continue;
+      Vec3 hitPos = {ForwardMPGDEndcapHits_position_x[iHit], ForwardMPGDEndcapHits_position_y[iHit], ForwardMPGDEndcapHits_position_z[iHit]};
+      vForwardMPGDEndcapHits.push_back(hitPos);
+   }
+   vTrkDetsHits.push_back(vForwardMPGDEndcapHits);
+   
+
+   std::vector<Vec3> vBackwardMPGDEndcapHits;
+   for(size_t iHit = 0; iHit < BackwardMPGDEndcapHits_; iHit++){
+      if( (MCParticles_generatorStatus[_BackwardMPGDEndcapHits_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_BackwardMPGDEndcapHits_particle_index[iHit]] > 2999)) continue;
+      Vec3 hitPos = {BackwardMPGDEndcapHits_position_x[iHit], BackwardMPGDEndcapHits_position_y[iHit], BackwardMPGDEndcapHits_position_z[iHit]};
+      vBackwardMPGDEndcapHits.push_back(hitPos);
+   }
+   vTrkDetsHits.push_back(vBackwardMPGDEndcapHits);
+   
+
+   std::vector<Vec3> vTOFBarrelHits;
+   for(size_t iHit = 0; iHit < TOFBarrelHits_; iHit++){
+      if( (MCParticles_generatorStatus[_TOFBarrelHits_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_TOFBarrelHits_particle_index[iHit]] > 2999)) continue;
+      Vec3 hitPos = {TOFBarrelHits_position_x[iHit], TOFBarrelHits_position_y[iHit], TOFBarrelHits_position_z[iHit]};
+      vTOFBarrelHits.push_back(hitPos);
+   }
+   vTrkDetsHits.push_back(vTOFBarrelHits);
+
+
+
+   std::vector<Vec3> vTOFEndcapHits;
+   for(size_t iHit = 0; iHit < TOFEndcapHits_; iHit++){
+      if( (MCParticles_generatorStatus[_TOFEndcapHits_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_TOFEndcapHits_particle_index[iHit]] > 2999)) continue;
+      Vec3 hitPos = {TOFEndcapHits_position_x[iHit], TOFEndcapHits_position_y[iHit], TOFEndcapHits_position_z[iHit]};
+      vTOFEndcapHits.push_back(hitPos);
+   }
+   vTrkDetsHits.push_back(vTOFEndcapHits);
+
+
+   std::vector<Vec3> vB0TrackerHits;
+   for(size_t iHit = 0; iHit < B0TrackerHits_; iHit++){
+      if( (MCParticles_generatorStatus[_B0TrackerHits_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_B0TrackerHits_particle_index[iHit]] > 2999)) continue;
+      Vec3 hitPos = {B0TrackerHits_position_x[iHit], B0TrackerHits_position_y[iHit], B0TrackerHits_position_z[iHit]};
+      vB0TrackerHits.push_back(hitPos);
+   }
+   vTrkDetsHits.push_back(vB0TrackerHits);
+
+
+   std::vector<Vec3> vDIRCBarHits;
+   for(size_t iHit = 0; iHit < DIRCBarHits_; iHit++){
+      if( (MCParticles_generatorStatus[_DIRCBarHits_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_DIRCBarHits_particle_index[iHit]] > 2999)) continue;
+      Vec3 hitPos = {DIRCBarHits_position_x[iHit], DIRCBarHits_position_y[iHit], DIRCBarHits_position_z[iHit]};
+      vDIRCBarHits.push_back(hitPos);
+   }
+   vTrkDetsHits.push_back(vDIRCBarHits);
+
+
+   std::vector<Vec3> vDRICHHits;
+   for(size_t iHit = 0; iHit < DRICHHits_; iHit++){
+      if( (MCParticles_generatorStatus[_DRICHHits_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_DRICHHits_particle_index[iHit]] > 2999)) continue;
+      Vec3 hitPos = {DRICHHits_position_x[iHit], DRICHHits_position_y[iHit], DRICHHits_position_z[iHit]};
+      vDRICHHits.push_back(hitPos);
+   }
+   vTrkDetsHits.push_back(vDRICHHits);
+
+
+   std::vector<Vec3> vForwardOffMTrackerHits;
+   for(size_t iHit = 0; iHit < ForwardOffMTrackerHits_; iHit++){
+      if( (MCParticles_generatorStatus[_ForwardOffMTrackerHits_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_ForwardOffMTrackerHits_particle_index[iHit]] > 2999)) continue;
+      Vec3 hitPos = {ForwardOffMTrackerHits_position_x[iHit], ForwardOffMTrackerHits_position_y[iHit], ForwardOffMTrackerHits_position_z[iHit]};
+      vForwardOffMTrackerHits.push_back(hitPos);
+   }
+   vTrkDetsHits.push_back(vForwardOffMTrackerHits);
+
+
+   std::vector<Vec3> vForwardRomanPotHits;
+   for(size_t iHit = 0; iHit < ForwardRomanPotHits_; iHit++){
+      if( (MCParticles_generatorStatus[_ForwardRomanPotHits_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_ForwardRomanPotHits_particle_index[iHit]] > 2999)) continue;
+      Vec3 hitPos = {ForwardRomanPotHits_position_x[iHit], ForwardRomanPotHits_position_y[iHit], ForwardRomanPotHits_position_z[iHit]};
+      vForwardRomanPotHits.push_back(hitPos);
+   }
+   vTrkDetsHits.push_back(vForwardRomanPotHits);
+
+
+   std::vector<Vec3> vLumiSpecTrackerHits;
+   for(size_t iHit = 0; iHit < LumiSpecTrackerHits_; iHit++){
+      if( (MCParticles_generatorStatus[_LumiSpecTrackerHits_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_LumiSpecTrackerHits_particle_index[iHit]] > 2999)) continue;
+      Vec3 hitPos = {LumiSpecTrackerHits_position_x[iHit], LumiSpecTrackerHits_position_y[iHit], LumiSpecTrackerHits_position_z[iHit]};
+      vLumiSpecTrackerHits.push_back(hitPos);
+   }
+   vTrkDetsHits.push_back(vLumiSpecTrackerHits);
+
+   std::vector<Vec3> vPFRICHHits;
+   for(size_t iHit = 0; iHit < PFRICHHits_; iHit++){
+      if( (MCParticles_generatorStatus[_PFRICHHits_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_PFRICHHits_particle_index[iHit]] > 2999)) continue;
+      Vec3 hitPos = {PFRICHHits_position_x[iHit], PFRICHHits_position_y[iHit], PFRICHHits_position_z[iHit]};
+      vPFRICHHits.push_back(hitPos);
+   }
+   vTrkDetsHits.push_back(vPFRICHHits);
+
+
+   std::vector<Vec3> vTaggerTrackerHits;
+   for(size_t iHit = 0; iHit < TaggerTrackerHits_; iHit++){
+      if( (MCParticles_generatorStatus[_TaggerTrackerHits_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_TaggerTrackerHits_particle_index[iHit]] > 2999)) continue;
+      Vec3 hitPos = {TaggerTrackerHits_position_x[iHit], TaggerTrackerHits_position_y[iHit], TaggerTrackerHits_position_z[iHit]};
+      vTaggerTrackerHits.push_back(hitPos);
+   }
+   vTrkDetsHits.push_back(vTaggerTrackerHits);
+
+   m_vRecordedTrkDetHits.push_back(vTrkDetsHits);
+}
+
+void McPsCheck::recordCalHitsForED(){
+   bool speID = false;  // special ID for checking the contribution of specific particles, e.g. beam background particles with ID > 1999 and < 3000, or primary particles with ID = 1 or 2. Set to false to disable this special ID check and include all particles regardless of their ID.
 
    std::vector<std::vector<Vec3> > vCalDetsHits;
    std::vector<Vec3> vB0ECalHits;
    for(size_t iHit = 0; iHit < B0ECalHits_; iHit++){
+      if( (MCParticles_generatorStatus[_B0ECalHitsContributions_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_B0ECalHitsContributions_particle_index[iHit]] > 2999)) continue;
       Vec3 hitPos = {B0ECalHits_position_x[iHit], B0ECalHits_position_y[iHit], B0ECalHits_position_z[iHit]};
       vB0ECalHits.push_back(hitPos);
    }
@@ -287,6 +1693,7 @@ void McPsCheck::recordEventsForED(){
 
    std::vector<Vec3> vEcalBarrelImagingHits;
    for(size_t iHit = 0; iHit < EcalBarrelImagingHits_; iHit++){
+      if( (MCParticles_generatorStatus[_EcalBarrelImagingHitsContributions_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_EcalBarrelImagingHitsContributions_particle_index[iHit]] > 2999)) continue;
       Vec3 hitPos = {EcalBarrelImagingHits_position_x[iHit], EcalBarrelImagingHits_position_y[iHit], EcalBarrelImagingHits_position_z[iHit]};
       vEcalBarrelImagingHits.push_back(hitPos);
    }
@@ -294,6 +1701,7 @@ void McPsCheck::recordEventsForED(){
 
    std::vector<Vec3> vEcalBarrelScFiHits;
    for(size_t iHit = 0; iHit < EcalBarrelScFiHits_; iHit++){
+      if( (MCParticles_generatorStatus[_EcalBarrelScFiHitsContributions_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_EcalBarrelScFiHitsContributions_particle_index[iHit]] > 2999)) continue;
       Vec3 hitPos = {EcalBarrelScFiHits_position_x[iHit], EcalBarrelScFiHits_position_y[iHit], EcalBarrelScFiHits_position_z[iHit]};
       vEcalBarrelScFiHits.push_back(hitPos);
    }
@@ -302,6 +1710,7 @@ void McPsCheck::recordEventsForED(){
 
    std::vector<Vec3> vEcalEndcapNHits;
    for(size_t iHit = 0; iHit < EcalEndcapNHits_; iHit++){
+      if( (MCParticles_generatorStatus[_EcalEndcapNHitsContributions_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_EcalEndcapNHitsContributions_particle_index[iHit]] > 2999)) continue;
       Vec3 hitPos = {EcalEndcapNHits_position_x[iHit], EcalEndcapNHits_position_y[iHit], EcalEndcapNHits_position_z[iHit]};
       vEcalEndcapNHits.push_back(hitPos);
    }
@@ -309,6 +1718,7 @@ void McPsCheck::recordEventsForED(){
 
    std::vector<Vec3> vEcalEndcapPHits;
    for(size_t iHit = 0; iHit < EcalEndcapPHits_; iHit++){
+      if( (MCParticles_generatorStatus[_EcalEndcapPHitsContributions_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_EcalEndcapPHitsContributions_particle_index[iHit]] > 2999)) continue;
       Vec3 hitPos = {EcalEndcapPHits_position_x[iHit], EcalEndcapPHits_position_y[iHit], EcalEndcapPHits_position_z[iHit]};
       vEcalEndcapPHits.push_back(hitPos);
    }
@@ -316,6 +1726,7 @@ void McPsCheck::recordEventsForED(){
 
    std::vector<Vec3> vEcalFarForwardZDCHits;
    for(size_t iHit = 0; iHit < EcalFarForwardZDCHits_; iHit++){
+      if( (MCParticles_generatorStatus[_EcalFarForwardZDCHitsContributions_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_EcalFarForwardZDCHitsContributions_particle_index[iHit]] > 2999)) continue;
       Vec3 hitPos = {EcalFarForwardZDCHits_position_x[iHit], EcalFarForwardZDCHits_position_y[iHit], EcalFarForwardZDCHits_position_z[iHit]};
       vEcalFarForwardZDCHits.push_back(hitPos);
    }
@@ -323,6 +1734,7 @@ void McPsCheck::recordEventsForED(){
 
    std::vector<Vec3> vEcalLumiSpecHits;
    for(size_t iHit = 0; iHit < EcalLumiSpecHits_; iHit++){
+      if( (MCParticles_generatorStatus[_EcalLumiSpecHitsContributions_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_EcalLumiSpecHitsContributions_particle_index[iHit]] > 2999)) continue;
       Vec3 hitPos = {EcalLumiSpecHits_position_x[iHit], EcalLumiSpecHits_position_y[iHit], EcalLumiSpecHits_position_z[iHit]};
       vEcalLumiSpecHits.push_back(hitPos);
    }
@@ -331,6 +1743,7 @@ void McPsCheck::recordEventsForED(){
 
    std::vector<Vec3> vHcalBarrelHits;
    for(size_t iHit = 0; iHit < HcalBarrelHits_; iHit++){
+      if( (MCParticles_generatorStatus[_HcalBarrelHitsContributions_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_HcalBarrelHitsContributions_particle_index[iHit]] > 2999)) continue;
       Vec3 hitPos = {HcalBarrelHits_position_x[iHit], HcalBarrelHits_position_y[iHit], HcalBarrelHits_position_z[iHit]};
       vHcalBarrelHits.push_back(hitPos);
    }
@@ -338,6 +1751,7 @@ void McPsCheck::recordEventsForED(){
 
    std::vector<Vec3> vHcalEndcapNHits;
    for(size_t iHit = 0; iHit < HcalEndcapNHits_; iHit++){
+      if( (MCParticles_generatorStatus[_HcalEndcapNHitsContributions_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_HcalEndcapNHitsContributions_particle_index[iHit]] > 2999)) continue;
       Vec3 hitPos = {HcalEndcapNHits_position_x[iHit], HcalEndcapNHits_position_y[iHit], HcalEndcapNHits_position_z[iHit]};
       vHcalEndcapNHits.push_back(hitPos);
    }
@@ -346,6 +1760,7 @@ void McPsCheck::recordEventsForED(){
 
    std::vector<Vec3> vHcalEndcapPInsertHits;
    for(size_t iHit = 0; iHit < HcalEndcapPInsertHits_; iHit++){
+      if( (MCParticles_generatorStatus[_HcalEndcapPInsertHitsContributions_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_HcalEndcapPInsertHitsContributions_particle_index[iHit]] > 2999)) continue;
       Vec3 hitPos = {HcalEndcapPInsertHits_position_x[iHit], HcalEndcapPInsertHits_position_y[iHit], HcalEndcapPInsertHits_position_z[iHit]};
       vHcalEndcapPInsertHits.push_back(hitPos);
    }
@@ -354,6 +1769,7 @@ void McPsCheck::recordEventsForED(){
 
    std::vector<Vec3> vHcalFarForwardZDCHits;
    for(size_t iHit = 0; iHit < HcalFarForwardZDCHits_; iHit++){
+      if( (MCParticles_generatorStatus[_HcalFarForwardZDCHitsContributions_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_HcalFarForwardZDCHitsContributions_particle_index[iHit]] > 2999)) continue;
       Vec3 hitPos = {HcalFarForwardZDCHits_position_x[iHit], HcalFarForwardZDCHits_position_y[iHit], HcalFarForwardZDCHits_position_z[iHit]};
       vHcalFarForwardZDCHits.push_back(hitPos);
    }
@@ -362,13 +1778,13 @@ void McPsCheck::recordEventsForED(){
 
    std::vector<Vec3> vLFHCALHits;
    for(size_t iHit = 0; iHit < LFHCALHits_; iHit++){
+      if( (MCParticles_generatorStatus[_LFHCALHitsContributions_particle_index[iHit]] < 1999 || MCParticles_generatorStatus[_LFHCALHitsContributions_particle_index[iHit]] > 2999)) continue;
       Vec3 hitPos = {LFHCALHits_position_x[iHit], LFHCALHits_position_y[iHit], LFHCALHits_position_z[iHit]};
       vLFHCALHits.push_back(hitPos);
    }
    vCalDetsHits.push_back(vLFHCALHits);
 
-   m_vRecordedCalibDetHits.push_back(vCalDetsHits);
-
+   m_vRecordedCalDetHits.push_back(vCalDetsHits);
 }
 
 void McPsCheck::FillEtaPtMaps(){
@@ -380,49 +1796,151 @@ void McPsCheck::FillEtaPtMaps(){
       double p = sqrt(px * px + py * py + pz * pz);
       double eta = 0.5 * log((p + pz) / (p - pz));
 
-      m_hEtaPt_All->Fill(eta, pt);
+      double kinE = sqrt(px * px + py * py + pz * pz + pow(MCParticles_mass[i], 2)) - MCParticles_mass[i];
+      double allE = sqrt(px * px + py * py + pz * pz + pow(MCParticles_mass[i], 2));
 
-      if (MCParticles_charge[i] != 0) {
-         m_hEtaPt_ChMcP->Fill(eta, pt);
-      } else {
-         m_hEtaPt_NMcP->Fill(eta, pt);
+      // if(!TOFBarrelHits_) continue;
+      // std::cout << "MCParticle " << i << ": PDG = " << MCParticles_PDG[i] << ", charge = " << MCParticles_charge[i] << ", generatorStatus = " << MCParticles_generatorStatus[i] << ", eta = " << eta << ", pt = " << pt << std::endl;  // ChecKuma
+      m_hEtaPt_All->Fill(eta, pt);
+      m_hEtaKinE_All->Fill(eta, kinE);
+      m_hEtaAllE_All->Fill(eta, allE);
+
+      //CheeeeeCkuma for BTOF
+      m_hEta_All->Fill(eta);
+      if(TOFBarrelHits_ > 0){
+         m_hEta_BTOF->Fill(eta);
+      }else if(TOFEndcapHits_ > 0){
+         m_hEta_ETOF->Fill(eta);
       }
+      
+
+
+      if (MCParticles_charge[i] != 0){
+         m_hEtaPt_ChMcP->Fill(eta, pt);
+         m_hEtaKinE_ChMcP->Fill(eta, kinE);
+         m_hEtaAllE_ChMcP->Fill(eta, allE);
+      }else{
+         m_hEtaPt_NMcP->Fill(eta, pt);
+         m_hEtaKinE_NMcP->Fill(eta, kinE);
+         m_hEtaAllE_NMcP->Fill(eta, allE);
+      }
+
+      // if(MCParticles_generatorStatus[i] == 2001){
+      if(1){
+         // std::cout << "z = " << MCParticles_vertex_z[i] << ", r = " << sqrt(MCParticles_vertex_x[i] * MCParticles_vertex_x[i] + MCParticles_vertex_y[i] * MCParticles_vertex_y[i]) << std::endl;  // ChecKuma
+         m_CollSourcePosiZR->Fill(MCParticles_vertex_z[i], sqrt(MCParticles_vertex_x[i] * MCParticles_vertex_x[i] + MCParticles_vertex_y[i] * MCParticles_vertex_y[i]));
+      }
+      
    }
 }
 
 
-void McPsCheck::drawOneEvent(const Event& ev, int eventIndex, double fallbackLength) {
-  double xmin, xmax, ymin, ymax, zmin, zmax;
-   
-   computeEventBounds(ev, xmin, xmax, ymin, ymax, zmin, zmax, fallbackLength);
-   
-   m_hEventDisplays[0]->SetStats(0);
-   m_hEventDisplays[eventIndex]->Draw();
+void McPsCheck::drawOnlyOneEvent(const Event& ev) {
+   auto* c = new TCanvas("cCheckEventDisplays", "one event", 1000, 800);
+   gPad->SetTheta(20);
+   gPad->SetPhi(30);
+
+   m_hCheckEventDisplays = new TH3D("hCheckEventDisplays", "MCParticle Event Display;Z (mm);X (mm);Y (mm)", 100, -3000, 3000, 100, -2000, 2000, 100, -2000, 2000);
+   m_hCheckEventDisplays->SetStats(0);
+   m_hCheckEventDisplays->Draw();
    gStyle->SetOptStat(0);
    for (size_t i = 0; i < ev.particles.size(); ++i) {
       
       const auto& p = ev.particles[i];
       const Vec3 a = p.vertex;
-      const Vec3 b = getTrackEnd(p, fallbackLength);
+      const Vec3 b = p.endpoint;
 
       if (mag(sub(b, a)) < 1e-12) continue;
 
       auto* line = new TPolyLine3D(2);
       line->SetPoint(0, a.z, a.x, a.y);
       line->SetPoint(1, b.z, b.x, b.y);
-      line->SetLineColor(colorFromPDG(p.pdg));
+      line->SetLineColor(colorFromPDG(p.pdg, p.charge));
+      line->SetLineWidth(1);
+      line->Draw("same");
+   
+   }
+   
+   for(size_t iDet =0; iDet < m_vRecordedTrkDetHits.at(0).size(); iDet++){
+      for(size_t iHit = 0; iHit < m_vRecordedTrkDetHits.at(0).at(iDet).size(); iHit++){
+         // std::cout << "Track Det Hit: (" << m_vRecordedTrkDetHits.at(0).at(iDet).at(iHit).x << ", " << m_vRecordedTrkDetHits.at(0).at(iDet).at(iHit).y << ", " << m_vRecordedTrkDetHits.at(0).at(iDet).at(iHit).z << ")" << std::endl; // ChecKuma
+         auto* marker = new TPolyMarker3D(1);
+         marker->SetPoint(1., m_vRecordedTrkDetHits.at(0).at(iDet).at(iHit).z, m_vRecordedTrkDetHits.at(0).at(iDet).at(iHit).x, m_vRecordedTrkDetHits.at(0).at(iDet).at(iHit).y);
+         marker->SetMarkerSize(0.5);
+         marker->SetMarkerStyle(20);
+         marker->SetMarkerColor(m_TrkDetColors[iDet]);
+         
+         marker->Draw("same");
+      }
+
+   }
+
+   for(size_t iDet =0; iDet < m_vRecordedCalDetHits.at(0).size(); iDet++){
+      for(size_t iHit = 0; iHit < m_vRecordedCalDetHits.at(0).at(iDet).size(); iHit++){
+         auto* marker = new TMarker(m_vRecordedCalDetHits.at(0).at(iDet).at(iHit).z, m_vRecordedCalDetHits.at(0).at(iDet).at(iHit).x, m_vRecordedCalDetHits.at(0).at(iDet).at(iHit).y);
+         marker->SetMarkerSize(0.8);
+         marker->SetMarkerStyle(20);
+         marker->SetMarkerColor(m_CalDetColors[iDet]);
+         marker->Draw("same");
+      }
+   }
+
+   // m_hCheckEventDisplays->SaveAs("hCheckEventDisplays.root");
+   c->Update();
+   TFile fout("hCheckEventDisplays.root", "RECREATE");
+  c->Write();
+  fout.Close();
+   
+}
+
+void McPsCheck::drawOneEvent(const Event& ev, int eventIndex, double fallbackLength) {
+  double xmin, xmax, ymin, ymax, zmin, zmax;
+   
+   computeEventBounds(ev, xmin, xmax, ymin, ymax, zmin, zmax, fallbackLength);
+   
+   m_hEventDisplays[eventIndex]->SetStats(0);
+   m_hEventDisplays[eventIndex]->Draw();
+   gStyle->SetOptStat(0);
+   for (size_t i = 0; i < ev.particles.size(); ++i) {
+      
+      const auto& p = ev.particles[i];
+      const Vec3 a = p.vertex;
+      const Vec3 b = p.endpoint;
+
+      if (mag(sub(b, a)) < 1e-12) continue;
+
+      auto* line = new TPolyLine3D(2);
+      line->SetPoint(0, a.z, a.x, a.y);
+      line->SetPoint(1, b.z, b.x, b.y);
+      line->SetLineColor(colorFromPDG(p.pdg, p.charge));
       line->SetLineWidth(2);
       line->Draw("same");
    
    }
    
+   for(size_t iDet =0; iDet < m_vRecordedTrkDetHits.at(eventIndex).size(); iDet++){
+      for(size_t iHit = 0; iHit < m_vRecordedTrkDetHits.at(eventIndex).at(iDet).size(); iHit++){
+         // std::cout << "Track Det Hit: (" << m_vRecordedTrkDetHits.at(eventIndex).at(iDet).at(iHit).x << ", " << m_vRecordedTrkDetHits.at(eventIndex).at(iDet).at(iHit).y << ", " << m_vRecordedTrkDetHits.at(eventIndex).at(iDet).at(iHit).z << ")" << std::endl; // ChecKuma
+         auto* marker = new TMarker(m_vRecordedTrkDetHits.at(eventIndex).at(iDet).at(iHit).z, m_vRecordedTrkDetHits.at(eventIndex).at(iDet).at(iHit).x, m_vRecordedTrkDetHits.at(eventIndex).at(iDet).at(iHit).y);
+         marker->SetMarkerSize(0.8);
+         marker->SetMarkerStyle(20);
+         marker->SetMarkerColor(m_TrkDetColors[iDet]);
+         
+         marker->Draw("same");
+      }
+   }
+
+   for(size_t iDet =0; iDet < m_vRecordedCalDetHits.at(eventIndex).size(); iDet++){
+      for(size_t iHit = 0; iHit < m_vRecordedCalDetHits.at(eventIndex).at(iDet).size(); iHit++){
+         auto* marker = new TMarker(m_vRecordedCalDetHits.at(eventIndex).at(iDet).at(iHit).z, m_vRecordedCalDetHits.at(eventIndex).at(iDet).at(iHit).x, m_vRecordedCalDetHits.at(eventIndex).at(iDet).at(iHit).y);
+         marker->SetMarkerSize(0.8);
+         marker->SetMarkerStyle(20);
+         marker->SetMarkerColor(m_CalDetColors[iDet]);
+         marker->Draw("same");
+      }
+   }
 
 
-
-//   TLatex latex;
-//   latex.SetNDC(true);
-//   latex.SetTextSize(0.05);
-//   latex.DrawLatex(0.12, 0.92, Form("Event %d, N = %zu", eventIndex, ev.particles.size()));
 }
 
 void McPsCheck::drawEightEvents(double fallbackLength) {
@@ -432,7 +1950,7 @@ void McPsCheck::drawEightEvents(double fallbackLength) {
   const int nPads = 8;
 //   const int nDraw = std::min<int>(nPads, m_eventsForED.size());
 
-  for (int i = 0; i < 8; ++i) {
+  for (int i = 0; i < numOfED; ++i) {
 // for (int i = 0; i < nDraw; ++i) {
       c->cd(i + 1);
       gStyle->SetOptStat(0);
@@ -462,6 +1980,7 @@ void McPsCheck::drawEightEvents2D_ZX(double fallbackLength) {
 
    for (int i = 0; i < numOfED; ++i) {
       c->cd(i + 1);
+      gStyle->SetOptStat(0);
       gPad->SetLeftMargin(0.12);
       gPad->SetRightMargin(0.05);
       gPad->SetTopMargin(0.08);
@@ -485,24 +2004,6 @@ void McPsCheck::drawOneEvent2D_ZX(const Event& ev, int eventIndex, double fallba
    m_hEventDisplays2D[eventIndex]->Draw();
    gStyle->SetOptStat(0);
 
-
-   auto* det1 = new TLine(50.0, -2.0, 50.0, 2.0);
-   det1->SetLineStyle(2);
-   det1->SetLineColor(kGray+2);
-   det1->Draw("same");
-
-   auto* det2 = new TLine(100.0, -2.0, 100.0, 2.0);
-   det2->SetLineStyle(2);
-   det2->SetLineColor(kGray+2);
-   det2->Draw("same");
-
-   auto* det3 = new TLine(150.0, -2.0, 150.0, 2.0);
-   det3->SetLineStyle(2);
-   det3->SetLineColor(kGray+2);
-   det3->Draw("same");
-
-
-
    for (size_t i = 0; i < ev.particles.size(); ++i) {
       const auto& p = ev.particles[i];
       const Vec3 a = p.vertex;
@@ -511,56 +2012,35 @@ void McPsCheck::drawOneEvent2D_ZX(const Event& ev, int eventIndex, double fallba
       if (mag(sub(b, a)) < 1e-12) continue;
 
       auto* line = new TLine(a.z, a.y, b.z, b.y);  // x-axis = z, y-axis = x
-      line->SetLineColor(colorFromPDG(p.pdg));
+      line->SetLineColor(colorFromPDG(p.pdg, p.charge));
       line->SetLineWidth(2);
       line->Draw("same");
    }
    
-   for(size_t iDet =0; iDet < m_vRecordedTrackDetHits.at(eventIndex).size(); iDet++){
-      for(size_t iHit = 0; iHit < m_vRecordedTrackDetHits.at(eventIndex).at(iDet).size(); iHit++){
-         std::cout << "Track Det Hit: (" << m_vRecordedTrackDetHits.at(eventIndex).at(iDet).at(iHit).x << ", " << m_vRecordedTrackDetHits.at(eventIndex).at(iDet).at(iHit).y << ", " << m_vRecordedTrackDetHits.at(eventIndex).at(iDet).at(iHit).z << ")" << std::endl;
-         auto* marker = new TMarker(m_vRecordedTrackDetHits.at(eventIndex).at(iDet).at(iHit).z, m_vRecordedTrackDetHits.at(eventIndex).at(iDet).at(iHit).y, 20);
+   for(size_t iDet =0; iDet < m_vRecordedTrkDetHits.at(eventIndex).size(); iDet++){
+      for(size_t iHit = 0; iHit < m_vRecordedTrkDetHits.at(eventIndex).at(iDet).size(); iHit++){
+         // std::cout << "Track Det Hit: (" << m_vRecordedTrkDetHits.at(eventIndex).at(iDet).at(iHit).x << ", " << m_vRecordedTrkDetHits.at(eventIndex).at(iDet).at(iHit).y << ", " << m_vRecordedTrkDetHits.at(eventIndex).at(iDet).at(iHit).z << ")" << std::endl; // ChecKuma
+         auto* marker = new TMarker(m_vRecordedTrkDetHits.at(eventIndex).at(iDet).at(iHit).z, m_vRecordedTrkDetHits.at(eventIndex).at(iDet).at(iHit).y, 20);
          marker->SetMarkerSize(0.8);
          marker->SetMarkerStyle(20);
-         marker->SetMarkerColor(4);
+         marker->SetMarkerColor(m_TrkDetColors[iDet]);
+         
          marker->Draw("same");
       }
 
    }
 
-   for(size_t iDet =0; iDet < m_vRecordedCalibDetHits.at(eventIndex).size(); iDet++){
-      for(size_t iHit = 0; iHit < m_vRecordedCalibDetHits.at(eventIndex).at(iDet).size(); iHit++){
-         std::cout << "Calib Det Hit: (" << m_vRecordedCalibDetHits.at(eventIndex).at(iDet).at(iHit).x << ", " << m_vRecordedCalibDetHits.at(eventIndex).at(iDet).at(iHit).y << ", " << m_vRecordedCalibDetHits.at(eventIndex).at(iDet).at(iHit).z << ")" << std::endl;
-         auto* marker = new TMarker(m_vRecordedCalibDetHits.at(eventIndex).at(iDet).at(iHit).z, m_vRecordedCalibDetHits.at(eventIndex).at(iDet).at(iHit).y, 20);
+   for(size_t iDet =0; iDet < m_vRecordedCalDetHits.at(eventIndex).size(); iDet++){
+      for(size_t iHit = 0; iHit < m_vRecordedCalDetHits.at(eventIndex).at(iDet).size(); iHit++){
+         // std::cout << "Calib Det Hit: (" << m_vRecordedCalDetHits.at(eventIndex).at(iDet).at(iHit).x << ", " << m_vRecordedCalDetHits.at(eventIndex).at(iDet).at(iHit).y << ", " << m_vRecordedCalDetHits.at(eventIndex).at(iDet).at(iHit).z << ")" << std::endl; // ChecKuma
+         auto* marker = new TMarker(m_vRecordedCalDetHits.at(eventIndex).at(iDet).at(iHit).z, m_vRecordedCalDetHits.at(eventIndex).at(iDet).at(iHit).y, 20);
          marker->SetMarkerSize(0.8);
          marker->SetMarkerStyle(20);
-         marker->SetMarkerColor(4);
+         marker->SetMarkerColor(m_CalDetColors[iDet]);
          marker->Draw("same");
       }
 
    }
-
-
-
-
-   // // calibrated hits
-   // for(size_t iDet = 0; iDet < 3; iDet++){
-   //    for(size_t iHit = 0; iHit < m_vRecordedCalibDetHits.at(eventIndex).at(iDet).size(); iHit++){
-   //       auto* marker = new TMarker(50.0 * (iDet + 1), m_vRecordedCalibDetHits.at(eventIndex).at(iDet).at(iHit).x, 20);
-   //       marker->SetMarkerSize(0.8);
-   //       marker->SetMarkerStyle(20);
-   //       marker->SetMarkerColor(4);
-   //       marker->Draw("same");
-   //    }
-
-   //    for(size_t iHit = 0; iHit < m_vRecordedClustDetHits.at(eventIndex).at(iDet).size(); iHit++){
-   //       auto* marker = new TMarker(50.0 * (iDet + 1), m_vRecordedClustDetHits.at(eventIndex).at(iDet).at(iHit).x, 20);
-   //       marker->SetMarkerSize(1.5);
-   //       marker->SetMarkerStyle(89);
-   //       marker->SetMarkerColor(802);
-   //       marker->Draw("same");
-   //    }
-   // }
 
 
 }
@@ -572,41 +2052,65 @@ void McPsCheck::drawOneEvent2D_ZX(const Event& ev, int eventIndex, double fallba
 
 void McPsCheck::HistInit(){
    oFile = new TFile(oFileName.c_str(), "recreate");
+   m_hMCEtaDist = new TH1D("m_hMCEtaDist",";#it{#eta}; count",100, -5, 5);
+   m_hMCThetaDist = new TH1D("m_hMCThetaDist","; #it{#theta} [rad]; count", 70, 3.5, 3.5);
 
-   m_hMCEtaDist = new TH1D(
-      "m_hMCEtaDist",
-      "MC Particles Eta Distribution; Eta; count",
-      100, -5, 5
-   );
+   m_HitRTimeDispersion = new TH2D("m_HitRTimeDispersion", ";r [mm];time dispersion [ns]", 1000, -50, 5000, 2000, -50, 150);
+   m_CalibHitRTimeDispersion = new TH2D("m_CalibHitRTimeDispersion", ";r [mm];time dispersion [ns]", 1000, -50, 5000, 2000, -50, 150);
+   m_HitTCalcT0Dispersion = new TH1D("m_HitTCalcT0Dispersion", "; #it{t}_{hit} - #it{t}_{0, calc} [ns]; count", 2000, -50, 150);
 
-   m_hMCThetaDist = new TH1D(
-      "m_hMCThetaDist",
-      "MC Particles Theta Distribution; Theta [rad]; count",
-      70, 3.5, 3.5
-   );
+   m_hEtaPt_All = new TH2D("m_hEtaPt_All",";#it{#eta};#it{p}_{T} [GeV/#it{c}]",100, -15, 15,1000, 0, 10);
+   m_hEtaPt_ChMcP = new TH2D("m_hEtaPt_ChMcP",";#it{#eta};#it{p}_{T} [GeV/#it{c}]",100, -15, 15,1000, 0, 10);
+   m_hEtaPt_NMcP = new TH2D("m_hEtaPt_NMcP",";#it{#eta};#it{p}_{T} [GeV/#it{c}]",100, -15, 15, 1000, 0, 10);
+
+   m_hEtaKinE_All = new TH2D("m_hEtaKinE_All",";#it{#eta};#it{E}_{kin} [GeV]",100, -15, 15,1000, 0, 10);
+   m_hEtaKinE_ChMcP = new TH2D("m_hEtaKinE_ChMcP",";#it{#eta};#it{E}_{kin} [GeV]",100, -15, 15,1000, 0, 10);
+   m_hEtaKinE_NMcP = new TH2D("m_hEtaKinE_NMcP",";#it{#eta};#it{E}_{kin} [GeV]",100, -15, 15, 1000, 0, 10);
+
+   m_hEtaAllE_All = new TH2D("m_hEtaAllE_All",";#it{#eta};#it{E} [GeV]",100, -15, 15,1000, 0, 10);
+   m_hEtaAllE_ChMcP = new TH2D("m_hEtaAllE_ChMcP",";#it{#eta};#it{E} [GeV]",100, -15, 15,1000, 0, 10);
+   m_hEtaAllE_NMcP = new TH2D("m_hEtaAllE_NMcP",";#it{#eta};#it{E} [GeV]",100, -15, 15, 1000, 0, 10);
+
+   for(size_t iBkg = 0; iBkg < 5; iBkg++){
+      m_hZRHitRatio_All_BKG[iBkg] = new TH2D(Form("m_hZRHitRatio_All_%s", m_BkgNames[iBkg].Data()), Form(";#it{z} [mm];#it{r} [mm] (%s)", m_BkgNames[iBkg].Data()), 1000, -3000, 3000, 500, 0, 1500);
+      m_hZRHitRatio_ChMcP_BKG[iBkg] = new TH2D(Form("m_hZRHitRatio_ChMcP_%s", m_BkgNames[iBkg].Data()), Form(";#it{z} [mm];#it{r} [mm] (%s)", m_BkgNames[iBkg].Data()), 1000, -3000, 3000, 500, 0, 1500);
+      m_hZRHitRatio_NMcP_BKG[iBkg] = new TH2D(Form("m_hZRHitRatio_NMcP_%s", m_BkgNames[iBkg].Data()), Form(";#it{z} [mm];#it{r} [mm] (%s)", m_BkgNames[iBkg].Data()), 1000, -3000, 3000, 1000, 0, 3000);
+
+      m_EveCountWithDetHits_Trk_BKG[iBkg] = new TH1D(Form("m_EveCountWithDetHits_Trk_%s", m_BkgNames[iBkg].Data()), ";; count", 17, 0.5, 17);
+      m_EveCountWithDetHits_Cal_BKG[iBkg] = new TH1D(Form("m_EveCountWithDetHits_Cal_%s", m_BkgNames[iBkg].Data()), ";; count", 12, 0.5, 12);
+
+      for (int i = 0; i < 17; ++i) m_EveCountWithDetHits_Trk_BKG[iBkg]->GetXaxis()->SetBinLabel(i + 1, m_TrkDetNames[i].Data());
+      for (int i = 0; i < 12; ++i) m_EveCountWithDetHits_Cal_BKG[iBkg]->GetXaxis()->SetBinLabel(i + 1, m_CalDetNames[i].Data());
 
 
-   m_hEtaPt_All = new TH2D(
-      "m_hEtaPt_All",
-      "MC Particles Eta vs Pt Distribution; Eta; Pt",
-      100, -5, 5,
-      100, 0, 10
-   );
+      m_HitsPerEveWithDetHits_Trk_BKG[iBkg] = new TH1D(Form("m_HitsPerEveWithDetHits_Trk_%s", m_BkgNames[iBkg].Data()), ";; count", 17, 0.5, 17);
+      m_HitsPerEveWithDetHits_Cal_BKG[iBkg] = new TH1D(Form("m_HitsPerEveWithDetHits_Cal_%s", m_BkgNames[iBkg].Data()), ";; count", 12, 0.5, 12);
 
-   m_hEtaPt_ChMcP = new TH2D(
-      "m_hEtaPt_ChMcP",
-      "MC Particles Eta vs Pt Distribution; Eta; Pt",
-      100, -5, 5,
-      100, 0, 10
-   );
+      for (int i = 0; i < 17; ++i) m_HitsPerEveWithDetHits_Trk_BKG[iBkg]->GetXaxis()->SetBinLabel(i + 1, m_TrkDetNames[i].Data());
+      for (int i = 0; i < 12; ++i) m_HitsPerEveWithDetHits_Cal_BKG[iBkg]->GetXaxis()->SetBinLabel(i + 1, m_CalDetNames[i].Data());
 
-   m_hEtaPt_NMcP = new TH2D(
-      "m_hEtaPt_NMcP",
-      "MC Particles Eta vs Pt Distribution; Eta; Pt",
-      100, -5, 5,
-      100, 0, 10
-   );
+   }
 
+
+   m_CollSourcePosiZR = new TH2D("m_CollSourcePosiZR",";z [mm];r [mm]",2000, -5000, 5000, 1000, 0, 100);
+
+   m_EveCountWithDetHits_Trk = new TH1D("m_EveCountWithDetHits_Trk", ";; count", 17, 0.5, 17);
+   m_EveCountWithDetHits_Cal = new TH1D("m_EveCountWithDetHits_Cal", ";; count", 12, 0.5, 12);
+
+   m_HitsPerEveWithDetHits_Trk = new TH1D("m_HitsPerEveWithDetHits_Trk", ";; count", 17, 0.5, 17);
+   m_HitsPerEveWithDetHits_Cal = new TH1D( "m_HitsPerEveWithDetHits_Cal", ";; count", 12, 0.5, 12);
+
+   for (int i = 0; i < 17; ++i) {
+      m_EveCountWithDetHits_Trk->GetXaxis()->SetBinLabel(i + 1, m_TrkDetNames[i].Data());
+      m_HitsPerEveWithDetHits_Trk->GetXaxis()->SetBinLabel(i + 1, m_TrkDetNames[i].Data());
+   }
+   for (int i = 0; i < 12; ++i) {
+      m_EveCountWithDetHits_Cal->GetXaxis()->SetBinLabel(i + 1, m_CalDetNames[i].Data());
+      m_HitsPerEveWithDetHits_Cal->GetXaxis()->SetBinLabel(i + 1, m_CalDetNames[i].Data());
+   }
+
+   m_NumOfEventsOfBKG = new TH1D("m_NumOfEventsOfBKG", ";; events/time frame [2 #mu s]", 5, 0.5, 5.5);
+   for (int i = 0; i < 5; ++i) m_NumOfEventsOfBKG->GetXaxis()->SetBinLabel(i + 1, m_BkgNames[i].Data());
 
    // for(size_t nHist = 0; nHist < 8; nHist++) m_hMomEventDisplays[nHist] = new TH2D(Form("hEventDisplays%d", nHist),"", nBins[nHist], minX[nHist],maxX[nHist]);
 
@@ -620,6 +2124,752 @@ void McPsCheck::HistInit(){
    //       100, -5000, 5000
    //    );
    // }
+
+
+
+   m_hEta_All = new TH1D("m_hEta_All",";#it{#eta};count",100, -15, 15);
+   m_hEta_BTOF = new TH1D("m_hEta_BTOF",";#it{#eta};count",100, -15, 15);
+   m_hEta_ETOF = new TH1D("m_hEta_ETOF",";#it{#eta};count",100, -15, 15);
+
+
+   m_HitTCalcT0Dispersion_Phys = new TH1D("m_HitTCalcT0Dispersion_Phys", "; #it{t}_{hit} - #it{t}_{0, calc} [ns]; count", 600, -100, 500);
+   m_HitTCalcT0Dispersion_BKG = new TH1D("m_HitTCalcT0Dispersion_BKG", "; #it{t}_{hit} - #it{t}_{0, calc} [ns]; count", 600, -100, 500);
+   m_HitTCalcT0Dispersion_Phys_BTOF = new TH1D("m_HitTCalcT0Dispersion_Phys_BTOF", "; #it{t}_{hit} - #it{t}_{0, calc} [ns]; count", 600, -100, 500);
+   m_HitTCalcT0Dispersion_BKG_BTOF = new TH1D("m_HitTCalcT0Dispersion_BKG_BTOF", "; #it{t}_{hit} - #it{t}_{0, calc} [ns]; count", 600, -100, 500);
+
+
+
+
+   m_HitDepE_Phys = new TH1D("m_HitDepE_Phys", ";depE [MeV]; count", 100, 0, 1.0);
+   m_HitDepE_Phys_BSVT = new TH1D("m_HitDepE_Phys_BSVT", ";depE [MeV]; count", 100, 0, 0.1);
+   m_HitDepE_Phys_ESVT = new TH1D("m_HitDepE_Phys_ESVT", ";depE [MeV]; count", 100, 0, 0.1);
+   m_HitDepE_Phys_BMPGD = new TH1D("m_HitDepE_Phys_BMPGD", ";depE [MeV]; count", 300, 0, 0.03);
+   m_HitDepE_Phys_EMPGD = new TH1D("m_HitDepE_Phys_EMPGD", ";depE [MeV]; count", 300, 0, 0.03);
+   m_HitDepE_Phys_BTOF = new TH1D("m_HitDepE_Phys_BTOF", ";depE [MeV]; count", 100, 0, 1.0);
+   m_HitDepE_Phys_ETOF = new TH1D("m_HitDepE_Phys_ETOF", ";depE [MeV]; count", 100, 0, 1.0);
+   for(size_t iBkg = 0; iBkg < 5; iBkg++){
+      m_HitDepE_BKG[iBkg] = new TH1D(Form("m_HitDepE_%s", m_BkgNames[iBkg].Data()), ";depE [MeV]; count", 100, 0, 1.0);
+      m_HitDepE_BKG_BSVT[iBkg] = new TH1D(Form("m_HitDepE_%s_BSVT", m_BkgNames[iBkg].Data()), ";depE [MeV]; count", 100, 0, 0.1);
+      m_HitDepE_BKG_ESVT[iBkg] = new TH1D(Form("m_HitDepE_%s_ESVT", m_BkgNames[iBkg].Data()), ";depE [MeV]; count", 100, 0, 0.1);
+      m_HitDepE_BKG_BMPGD[iBkg] = new TH1D(Form("m_HitDepE_%s_BMPGD", m_BkgNames[iBkg].Data()), ";depE [MeV]; count", 300, 0, 0.03);
+      m_HitDepE_BKG_EMPGD[iBkg] = new TH1D(Form("m_HitDepE_%s_EMPGD", m_BkgNames[iBkg].Data()), ";depE [MeV]; count", 300, 0, 0.03);
+      m_HitDepE_BKG_BTOF[iBkg] = new TH1D(Form("m_HitDepE_%s_BTOF", m_BkgNames[iBkg].Data()), ";depE [MeV]; count", 100, 0, 1.0);
+      m_HitDepE_BKG_ETOF[iBkg] = new TH1D(Form("m_HitDepE_%s_ETOF", m_BkgNames[iBkg].Data()), ";depE [MeV]; count", 100, 0, 1.0);
+   }
+}
+
+
+void McPsCheck::FillHitTimeDispersion(){
+
+   Double_t timeVtx = -99999.;
+   for(size_t iMcP = 0; iMcP < MCParticles_; iMcP++){
+      // std::cout << "MCParticle " << iMcP << ": generatorStatus = " << MCParticles_generatorStatus[iMcP] << ", time = " << MCParticles_time[iMcP] << std::endl; // ChecKuma
+      if(MCParticles_generatorStatus[iMcP] != 61) continue;
+      timeVtx = MCParticles_time[iMcP];
+   }
+   if(timeVtx == -99999.) return; // No valid timeVtx found, skip filling the histogram
+   
+
+   for(size_t iHit = 0; iHit < VertexBarrelHits_; iHit++){
+      Double_t hitR = std::sqrt(VertexBarrelHits_position_x[iHit]*VertexBarrelHits_position_x[iHit]\
+         + VertexBarrelHits_position_y[iHit]*VertexBarrelHits_position_y[iHit]\
+         + VertexBarrelHits_position_z[iHit]*VertexBarrelHits_position_z[iHit]);
+      Double_t hitT = VertexBarrelHits_time[iHit] - timeVtx;
+      m_HitRTimeDispersion->Fill(hitR, hitT);
+      Double_t t0Calc = hitR * 0.0034;
+      m_HitTCalcT0Dispersion->Fill(hitT - t0Calc);
+      m_CalibHitRTimeDispersion->Fill(hitR, hitT - t0Calc);
+      // if(hitT - t0Calc > 4.5 && hitT - t0Calc < 5.5) std::cout << "VertexBarrelHits Time: " << hitT - t0Calc << std::endl; // ChecKuma
+      // if(hitR > 0 && hitR < 200) std::cout << "VertexBarrelHits R : " << hitR << std::endl; // ChecKuma
+   }
+
+   for(size_t iHit = 0; iHit < SiBarrelHits_; iHit++){
+      Double_t hitR = std::sqrt(SiBarrelHits_position_x[iHit]*SiBarrelHits_position_x[iHit]\
+         + SiBarrelHits_position_y[iHit]*SiBarrelHits_position_y[iHit]\
+         + SiBarrelHits_position_z[iHit]*SiBarrelHits_position_z[iHit]);
+      Double_t hitT = SiBarrelHits_time[iHit] - timeVtx;
+      m_HitRTimeDispersion->Fill(hitR, hitT);
+      Double_t t0Calc = hitR * 0.0034;
+      m_HitTCalcT0Dispersion->Fill(hitT - t0Calc);
+      m_CalibHitRTimeDispersion->Fill(hitR, hitT - t0Calc);
+      // if(hitT - t0Calc > 4.5 && hitT - t0Calc < 5.5) std::cout << "SiBarrelHits Time: " << hitT - t0Calc << std::endl; // ChecKuma
+      // if(hitR > 0 && hitR < 200) std::cout << "SiBarrelHits R : " << hitR << std::endl; // ChecKuma
+   }
+
+
+   for(size_t iHit = 0; iHit < TrackerEndcapHits_; iHit++){
+      Double_t hitR = std::sqrt(TrackerEndcapHits_position_x[iHit]*TrackerEndcapHits_position_x[iHit]\
+         + TrackerEndcapHits_position_y[iHit]*TrackerEndcapHits_position_y[iHit]\
+         + TrackerEndcapHits_position_z[iHit]*TrackerEndcapHits_position_z[iHit]);
+      Double_t hitT = TrackerEndcapHits_time[iHit] - timeVtx;
+      m_HitRTimeDispersion->Fill(hitR, hitT);
+      Double_t t0Calc = hitR * 0.0034;
+      m_HitTCalcT0Dispersion->Fill(hitT - t0Calc);
+      m_CalibHitRTimeDispersion->Fill(hitR, hitT - t0Calc);
+         // if(hitT - t0Calc > 4.5 && hitT - t0Calc < 5.5) std::cout << "TrackerEndcapHits Time: " << hitT - t0Calc << std::endl; // ChecKuma
+         // if(hitR > 0 && hitR < 200) std::cout << "TrackerEndcapHits_ R : " << hitR << std::endl; // ChecKuma
+   }
+
+   for(size_t iHit = 0; iHit < MPGDBarrelHits_; iHit++){
+      Double_t hitR = std::sqrt(MPGDBarrelHits_position_x[iHit]*MPGDBarrelHits_position_x[iHit]\
+         + MPGDBarrelHits_position_y[iHit]*MPGDBarrelHits_position_y[iHit]\
+         + MPGDBarrelHits_position_z[iHit]*MPGDBarrelHits_position_z[iHit]);
+      Double_t hitT = MPGDBarrelHits_time[iHit] - timeVtx;
+      m_HitRTimeDispersion->Fill(hitR, hitT);
+      Double_t t0Calc = hitR * 0.0034;
+      m_HitTCalcT0Dispersion->Fill(hitT - t0Calc);
+      m_CalibHitRTimeDispersion->Fill(hitR, hitT - t0Calc);
+      // if(hitT - t0Calc > 4.5 && hitT - t0Calc < 5.5) std::cout << "MPGDBarrelHits Time: " << hitT - t0Calc << std::endl; // ChecKuma
+      // if(hitR > 0 && hitR < 200) std::cout << "MPGDBarrelHits_ R : " << hitR << std::endl; // ChecKuma
+   }
+
+   for(size_t iHit = 0; iHit < OuterMPGDBarrelHits_; iHit++){
+      Double_t hitR = std::sqrt(OuterMPGDBarrelHits_position_x[iHit]*OuterMPGDBarrelHits_position_x[iHit]\
+         + OuterMPGDBarrelHits_position_y[iHit]*OuterMPGDBarrelHits_position_y[iHit]\
+         + OuterMPGDBarrelHits_position_z[iHit]*OuterMPGDBarrelHits_position_z[iHit]);
+      Double_t hitT = OuterMPGDBarrelHits_time[iHit] - timeVtx;
+      m_HitRTimeDispersion->Fill(hitR, hitT);
+      Double_t t0Calc = hitR * 0.0034;
+      m_HitTCalcT0Dispersion->Fill(hitT - t0Calc);
+      m_CalibHitRTimeDispersion->Fill(hitR, hitT - t0Calc);
+      // if(hitT - t0Calc > 4.5 && hitT - t0Calc < 5.5) std::cout << "OuterMPGDBarrelHits Time: " << hitT - t0Calc << std::endl; // ChecKuma
+      // if(hitR > 0 && hitR < 200) std::cout << "OuterMPGDBarrelHits_ R : " << hitR << std::endl; // ChecKuma
+      
+
+   }
+
+   for(size_t iHit = 0; iHit < ForwardMPGDEndcapHits_; iHit++){
+      Double_t hitR = std::sqrt(ForwardMPGDEndcapHits_position_x[iHit]*ForwardMPGDEndcapHits_position_x[iHit]\
+         + ForwardMPGDEndcapHits_position_y[iHit]*ForwardMPGDEndcapHits_position_y[iHit]\
+         + ForwardMPGDEndcapHits_position_z[iHit]*ForwardMPGDEndcapHits_position_z[iHit]);
+      Double_t hitT = ForwardMPGDEndcapHits_time[iHit] - timeVtx;
+      m_HitRTimeDispersion->Fill(hitR, hitT);
+      Double_t t0Calc = hitR * 0.0034;
+      m_HitTCalcT0Dispersion->Fill(hitT - t0Calc);
+      m_CalibHitRTimeDispersion->Fill(hitR, hitT - t0Calc);
+      // if(hitT - t0Calc > 4.5 && hitT - t0Calc < 5.5) std::cout << "ForwardMPGDEndcapHits Time: " << hitT - t0Calc << std::endl; // ChecKuma
+      // if(hitR > 0 && hitR < 200) std::cout << "ForwardMPGDEndcapHits_ R : " << hitR << std::endl; // ChecKuma
+   }
+
+   for(size_t iHit = 0; iHit < BackwardMPGDEndcapHits_; iHit++){
+      Double_t hitR = std::sqrt(BackwardMPGDEndcapHits_position_x[iHit]*BackwardMPGDEndcapHits_position_x[iHit]\
+         + BackwardMPGDEndcapHits_position_y[iHit]*BackwardMPGDEndcapHits_position_y[iHit]\
+         + BackwardMPGDEndcapHits_position_z[iHit]*BackwardMPGDEndcapHits_position_z[iHit]);
+      Double_t hitT = BackwardMPGDEndcapHits_time[iHit] - timeVtx;
+      m_HitRTimeDispersion->Fill(hitR, hitT);
+      Double_t t0Calc = hitR * 0.0034;
+      m_HitTCalcT0Dispersion->Fill(hitT - t0Calc);
+      m_CalibHitRTimeDispersion->Fill(hitR, hitT - t0Calc);
+      // if(hitT - t0Calc > 4.5 && hitT - t0Calc < 5.5) std::cout << "BackwardMPGDEndcapHits Time: " << hitT - t0Calc << std::endl; // ChecKuma
+      // if(hitR > 0 && hitR < 200) std::cout << "BackwardMPGDEndcapHits_ R : " << hitR << std::endl; // ChecKuma
+   }
+
+   for(size_t iHit = 0; iHit < TOFBarrelHits_; iHit++){
+      Double_t hitR = std::sqrt(TOFBarrelHits_position_x[iHit]*TOFBarrelHits_position_x[iHit]\
+         + TOFBarrelHits_position_y[iHit]*TOFBarrelHits_position_y[iHit]\
+         + TOFBarrelHits_position_z[iHit]*TOFBarrelHits_position_z[iHit]);
+      Double_t hitT = TOFBarrelHits_time[iHit] - timeVtx;
+      m_HitRTimeDispersion->Fill(hitR, hitT);
+      Double_t t0Calc = hitR * 0.0034;
+      m_HitTCalcT0Dispersion->Fill(hitT - t0Calc);
+      m_CalibHitRTimeDispersion->Fill(hitR, hitT - t0Calc);
+      // if(hitT - t0Calc > 4.5 && hitT - t0Calc < 5.5) std::cout << "TOFBarrelHits Time: " << hitT - t0Calc << std::endl; // ChecKuma
+      // if(hitR > 0 && hitR < 200) std::cout << "TOFBarrelHits_ R : " << hitR << std::endl; // ChecKuma
+   }
+
+   for(size_t iHit = 0; iHit < TOFEndcapHits_; iHit++){
+      Double_t hitR = std::sqrt(TOFEndcapHits_position_x[iHit]*TOFEndcapHits_position_x[iHit]\
+         + TOFEndcapHits_position_y[iHit]*TOFEndcapHits_position_y[iHit]\
+         + TOFEndcapHits_position_z[iHit]*TOFEndcapHits_position_z[iHit]);
+      Double_t hitT = TOFEndcapHits_time[iHit] - timeVtx;
+      m_HitRTimeDispersion->Fill(hitR, hitT);
+      Double_t t0Calc = hitR * 0.0034;
+      m_HitTCalcT0Dispersion->Fill(hitT - t0Calc);
+      m_CalibHitRTimeDispersion->Fill(hitR, hitT - t0Calc);
+      // if(hitT - t0Calc > 4.5 && hitT - t0Calc < 5.5) std::cout << "TOFEndcapHits Time: " << hitT - t0Calc << std::endl; // ChecKuma
+      // if(hitR > 0 && hitR < 200) std::cout << "TOFEndcapHits_ R : " << hitR << std::endl; // ChecKuma
+   }
+
+   for(size_t iHit = 0; iHit < B0TrackerHits_; iHit++){
+      Double_t hitR = std::sqrt(B0TrackerHits_position_x[iHit]*B0TrackerHits_position_x[iHit]\
+         + B0TrackerHits_position_y[iHit]*B0TrackerHits_position_y[iHit]\
+         + B0TrackerHits_position_z[iHit]*B0TrackerHits_position_z[iHit]);
+      Double_t hitT = B0TrackerHits_time[iHit] - timeVtx;
+      m_HitRTimeDispersion->Fill(hitR, hitT);
+      Double_t t0Calc = hitR * 0.0034;
+      m_HitTCalcT0Dispersion->Fill(hitT - t0Calc);
+      m_CalibHitRTimeDispersion->Fill(hitR, hitT - t0Calc);
+      // if(hitT - t0Calc > 4.5 && hitT - t0Calc < 5.5) std::cout << "B0TrackerHits Time: " << hitT - t0Calc << std::endl; // ChecKuma
+      // if(hitR > 0 && hitR < 200) std::cout << "B0TrackerHits_ R : " << hitR << std::endl; // ChecKuma
+   }
+
+
+   // for(size_t iHit = 0; iHit < DIRCBarHits_; iHit++){
+   //    Double_t hitR = std::sqrt(DIRCBarHits_position_x[iHit]*DIRCBarHits_position_x[iHit]\
+   //       + DIRCBarHits_position_y[iHit]*DIRCBarHits_position_y[iHit]\
+   //       + DIRCBarHits_position_z[iHit]*DIRCBarHits_position_z[iHit]);
+   //    Double_t hitT = DIRCBarHits_time[iHit] - timeVtx;
+   //    m_HitRTimeDispersion->Fill(hitR, hitT);
+   //    Double_t t0Calc = hitR * 0.0034;
+   //    m_HitTCalcT0Dispersion->Fill(hitT - t0Calc);
+   //    if(hitT - t0Calc > 4.5 && hitT - t0Calc < 5.5) std::cout << "DIRCBarHits Time: " << hitT - t0Calc << std::endl; // ChecKuma
+   // }
+
+   // for(size_t iHit = 0; iHit < DRICHHits_; iHit++){
+   //    Double_t hitR = std::sqrt(DRICHHits_position_x[iHit]*DRICHHits_position_x[iHit]\
+   //       + DRICHHits_position_y[iHit]*DRICHHits_position_y[iHit]\
+   //       + DRICHHits_position_z[iHit]*DRICHHits_position_z[iHit]);
+   //    Double_t hitT = DRICHHits_time[iHit] - timeVtx;
+   //    m_HitRTimeDispersion->Fill(hitR, hitT);
+   //    Double_t t0Calc = hitR * 0.0034;
+   //    m_HitTCalcT0Dispersion->Fill(hitT - t0Calc);
+   //    if(hitT - t0Calc > 4.5 && hitT - t0Calc < 5.5) std::cout << "DRICHHits Time: " << hitT - t0Calc << std::endl; // ChecKuma
+   // }
+
+
+   for(size_t iHit = 0; iHit < ForwardOffMTrackerHits_; iHit++){
+      Double_t hitR = std::sqrt(ForwardOffMTrackerHits_position_x[iHit]*ForwardOffMTrackerHits_position_x[iHit]\
+         + ForwardOffMTrackerHits_position_y[iHit]*ForwardOffMTrackerHits_position_y[iHit]\
+         + ForwardOffMTrackerHits_position_z[iHit]*ForwardOffMTrackerHits_position_z[iHit]);
+      Double_t hitT = ForwardOffMTrackerHits_time[iHit] - timeVtx;
+      m_HitRTimeDispersion->Fill(hitR, hitT);
+      Double_t t0Calc = hitR * 0.0034;
+      m_HitTCalcT0Dispersion->Fill(hitT - t0Calc);
+      m_CalibHitRTimeDispersion->Fill(hitR, hitT - t0Calc);
+      // if(hitT - t0Calc > 4.5 && hitT - t0Calc < 5.5) std::cout << "ForwardOffMTrackerHits Time: " << hitT - t0Calc << std::endl; // ChecKuma
+      // if(hitR > 0 && hitR < 200) std::cout << "ForwardOffMTrackerHits_ R : " << hitR << std::endl; // ChecKuma
+   }
+
+   for(size_t iHit = 0; iHit < ForwardRomanPotHits_; iHit++){
+      Double_t hitR = std::sqrt(ForwardRomanPotHits_position_x[iHit]*ForwardRomanPotHits_position_x[iHit]\
+         + ForwardRomanPotHits_position_y[iHit]*ForwardRomanPotHits_position_y[iHit]\
+         + ForwardRomanPotHits_position_z[iHit]*ForwardRomanPotHits_position_z[iHit]);
+      Double_t hitT = ForwardRomanPotHits_time[iHit] - timeVtx;
+      m_HitRTimeDispersion->Fill(hitR, hitT);
+      Double_t t0Calc = hitR * 0.0034;
+      m_HitTCalcT0Dispersion->Fill(hitT - t0Calc);
+      m_CalibHitRTimeDispersion->Fill(hitR, hitT - t0Calc);
+      // if(hitT - t0Calc > 4.5 && hitT - t0Calc < 5.5) std::cout << "ForwardRomanPotHits Time: " << hitT - t0Calc << std::endl; // ChecKuma
+      // if(hitR > 0 && hitR < 200) std::cout << "ForwardRomanPotHits_ R : " << hitR << std::endl; // ChecKuma
+   }
+
+   for(size_t iHit = 0; iHit < LumiSpecTrackerHits_; iHit++){
+      Double_t hitR = std::sqrt(LumiSpecTrackerHits_position_x[iHit]*LumiSpecTrackerHits_position_x[iHit]\
+         + LumiSpecTrackerHits_position_y[iHit]*LumiSpecTrackerHits_position_y[iHit]\
+         + LumiSpecTrackerHits_position_z[iHit]*LumiSpecTrackerHits_position_z[iHit]);
+      Double_t hitT = LumiSpecTrackerHits_time[iHit] - timeVtx;
+      m_HitRTimeDispersion->Fill(hitR, hitT);
+      Double_t t0Calc = hitR * 0.0034;
+      m_HitTCalcT0Dispersion->Fill(hitT - t0Calc);
+      m_CalibHitRTimeDispersion->Fill(hitR, hitT - t0Calc);
+      // if(hitT - t0Calc > 4.5 && hitT - t0Calc < 5.5) std::cout << "LumiSpecTrackerHits Time: " << hitT - t0Calc << std::endl; // ChecKuma
+         // if(hitR > 0 && hitR < 200) std::cout << "LumiSpecTrackerHits_ R : " << hitR << std::endl; // ChecKuma
+   }
+
+
+   for(size_t iHit = 0; iHit < PFRICHHits_; iHit++){
+      Double_t hitR = std::sqrt(PFRICHHits_position_x[iHit]*PFRICHHits_position_x[iHit]\
+         + PFRICHHits_position_y[iHit]*PFRICHHits_position_y[iHit]\
+         + PFRICHHits_position_z[iHit]*PFRICHHits_position_z[iHit]);
+      Double_t hitT = PFRICHHits_time[iHit] - timeVtx;
+      m_HitRTimeDispersion->Fill(hitR, hitT);
+      Double_t t0Calc = hitR * 0.0034;
+      m_HitTCalcT0Dispersion->Fill(hitT - t0Calc);
+      m_CalibHitRTimeDispersion->Fill(hitR, hitT - t0Calc);
+      // if(hitT - t0Calc > 4.5 && hitT - t0Calc < 5.5) std::cout << "PFRICHHits Time: " << hitT - t0Calc << std::endl; // ChecKuma
+      // if(hitR > 0 && hitR < 200) std::cout << "PFRICHHits_ R : " << hitR << std::endl; // ChecKuma
+   }
+
+
+   for(size_t iHit = 0; iHit < TaggerTrackerHits_; iHit++){
+      Double_t hitR = std::sqrt(TaggerTrackerHits_position_x[iHit]*TaggerTrackerHits_position_x[iHit]\
+         + TaggerTrackerHits_position_y[iHit]*TaggerTrackerHits_position_y[iHit]\
+         + TaggerTrackerHits_position_z[iHit]*TaggerTrackerHits_position_z[iHit]);
+      Double_t hitT = TaggerTrackerHits_time[iHit] - timeVtx;
+      m_HitRTimeDispersion->Fill(hitR, hitT);
+      Double_t t0Calc = hitR * 0.0034;
+      m_HitTCalcT0Dispersion->Fill(hitT - t0Calc);
+      m_CalibHitRTimeDispersion->Fill(hitR, hitT - t0Calc);
+      // if(hitT - t0Calc > 4.5 && hitT - t0Calc < 5.5) std::cout << "TaggerTrackerHits Time: " << hitT - t0Calc << std::endl; // ChecKuma
+      // if(hitR > 0 && hitR < 200) std::cout << "TaggerTrackerHits_ R : " << hitR << std::endl; // ChecKuma
+   }
+
+
+
+
+}
+
+
+void McPsCheck::FillHitTimeDispersionForMixBKG(){
+
+   Double_t timeVtx = -99999.;
+   for(size_t iMcP = 0; iMcP < MCParticles_; iMcP++){
+      // std::cout << "MCParticle " << iMcP << ": generatorStatus = " << MCParticles_generatorStatus[iMcP] << ", time = " << MCParticles_time[iMcP] << std::endl; // ChecKuma
+      if(MCParticles_generatorStatus[iMcP] != 61) continue;
+      timeVtx = MCParticles_time[iMcP];
+   }
+   if(timeVtx == -99999.) return; // No valid timeVtx found, skip filling the histogram
+   
+
+   for(size_t iHit = 0; iHit < VertexBarrelHits_; iHit++){
+      Double_t hitR = std::sqrt(VertexBarrelHits_position_x[iHit]*VertexBarrelHits_position_x[iHit]\
+         + VertexBarrelHits_position_y[iHit]*VertexBarrelHits_position_y[iHit]\
+         + VertexBarrelHits_position_z[iHit]*VertexBarrelHits_position_z[iHit]);
+      Double_t hitT = VertexBarrelHits_time[iHit] - timeVtx;
+      Double_t t0Calc = hitR * 0.0034;
+      
+
+      Int_t pTagId = _VertexBarrelHits_particle_index[iHit];
+      if(MCParticles_generatorStatus[pTagId] < 1999) m_HitTCalcT0Dispersion_Phys->Fill(hitT - t0Calc);
+      else m_HitTCalcT0Dispersion_BKG->Fill(hitT - t0Calc);
+   
+      Double_t depE = VertexBarrelHits_eDep[iHit] * 1000; // Convert GeV to MeV
+      if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_HitDepE_BKG_BSVT[4]->Fill(depE);
+         m_HitDepE_BKG[4]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_HitDepE_BKG_BSVT[3]->Fill(depE);
+         m_HitDepE_BKG[3]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_HitDepE_BKG_BSVT[2]->Fill(depE);
+         m_HitDepE_BKG[2]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_HitDepE_BKG_BSVT[1]->Fill(depE);
+         m_HitDepE_BKG[1]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_HitDepE_BKG_BSVT[0]->Fill(depE);
+         m_HitDepE_BKG[0]->Fill(depE);
+      }else{
+         m_HitDepE_Phys->Fill(depE);
+         m_HitDepE_Phys_BSVT->Fill(depE);
+      }
+
+
+   }
+
+   for(size_t iHit = 0; iHit < SiBarrelHits_; iHit++){
+      Double_t hitR = std::sqrt(SiBarrelHits_position_x[iHit]*SiBarrelHits_position_x[iHit]\
+         + SiBarrelHits_position_y[iHit]*SiBarrelHits_position_y[iHit]\
+         + SiBarrelHits_position_z[iHit]*SiBarrelHits_position_z[iHit]);
+      Double_t hitT = SiBarrelHits_time[iHit] - timeVtx;
+      Double_t t0Calc = hitR * 0.0034;
+      
+      Int_t pTagId = _SiBarrelHits_particle_index[iHit];
+      if(MCParticles_generatorStatus[pTagId] < 1999) m_HitTCalcT0Dispersion_Phys->Fill(hitT - t0Calc);
+      else m_HitTCalcT0Dispersion_BKG->Fill(hitT - t0Calc);
+
+      Double_t depE = SiBarrelHits_eDep[iHit] * 1000; // Convert GeV to MeV
+      if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_HitDepE_BKG_BSVT[4]->Fill(depE);
+         m_HitDepE_BKG[4]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_HitDepE_BKG_BSVT[3]->Fill(depE);
+         m_HitDepE_BKG[3]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_HitDepE_BKG_BSVT[2]->Fill(depE);
+         m_HitDepE_BKG[2]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_HitDepE_BKG_BSVT[1]->Fill(depE);
+         m_HitDepE_BKG[1]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_HitDepE_BKG_BSVT[0]->Fill(depE);
+         m_HitDepE_BKG[0]->Fill(depE);
+      }else{
+         m_HitDepE_Phys->Fill(depE);
+         m_HitDepE_Phys_BSVT->Fill(depE);
+      }
+
+   }
+
+
+   for(size_t iHit = 0; iHit < TrackerEndcapHits_; iHit++){
+      Double_t hitR = std::sqrt(TrackerEndcapHits_position_x[iHit]*TrackerEndcapHits_position_x[iHit]\
+         + TrackerEndcapHits_position_y[iHit]*TrackerEndcapHits_position_y[iHit]\
+         + TrackerEndcapHits_position_z[iHit]*TrackerEndcapHits_position_z[iHit]);
+      Double_t hitT = TrackerEndcapHits_time[iHit] - timeVtx;
+      Double_t t0Calc = hitR * 0.0034;
+      Int_t pTagId = _TrackerEndcapHits_particle_index[iHit];
+      if(MCParticles_generatorStatus[pTagId] < 1999) m_HitTCalcT0Dispersion_Phys->Fill(hitT - t0Calc);
+      else m_HitTCalcT0Dispersion_BKG->Fill(hitT - t0Calc);
+
+      Double_t depE = TrackerEndcapHits_eDep[iHit] * 1000; // Convert GeV to MeV
+      if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_HitDepE_BKG_ESVT[4]->Fill(depE);
+         m_HitDepE_BKG[4]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_HitDepE_BKG_ESVT[3]->Fill(depE);
+         m_HitDepE_BKG[3]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_HitDepE_BKG_ESVT[2]->Fill(depE);
+         m_HitDepE_BKG[2]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_HitDepE_BKG_ESVT[1]->Fill(depE);
+         m_HitDepE_BKG[1]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_HitDepE_BKG_ESVT[0]->Fill(depE);
+         m_HitDepE_BKG[0]->Fill(depE);
+      }else{
+         m_HitDepE_Phys->Fill(depE);
+         m_HitDepE_Phys_ESVT->Fill(depE);
+      }
+   }
+
+   for(size_t iHit = 0; iHit < MPGDBarrelHits_; iHit++){
+      Double_t hitR = std::sqrt(MPGDBarrelHits_position_x[iHit]*MPGDBarrelHits_position_x[iHit]\
+         + MPGDBarrelHits_position_y[iHit]*MPGDBarrelHits_position_y[iHit]\
+         + MPGDBarrelHits_position_z[iHit]*MPGDBarrelHits_position_z[iHit]);
+      Double_t hitT = MPGDBarrelHits_time[iHit] - timeVtx;
+      Double_t t0Calc = hitR * 0.0034;
+      Int_t pTagId = _MPGDBarrelHits_particle_index[iHit];
+      if(MCParticles_generatorStatus[pTagId] < 1999) m_HitTCalcT0Dispersion_Phys->Fill(hitT - t0Calc);
+      else m_HitTCalcT0Dispersion_BKG->Fill(hitT - t0Calc);
+
+      Double_t depE = MPGDBarrelHits_eDep[iHit] * 1000; // Convert GeV to MeV
+      if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_HitDepE_BKG_BMPGD[4]->Fill(depE);
+         m_HitDepE_BKG[4]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_HitDepE_BKG_BMPGD[3]->Fill(depE);
+         m_HitDepE_BKG[3]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_HitDepE_BKG_BMPGD[2]->Fill(depE);
+         m_HitDepE_BKG[2]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_HitDepE_BKG_BMPGD[1]->Fill(depE);
+         m_HitDepE_BKG[1]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_HitDepE_BKG_BMPGD[0]->Fill(depE);
+         m_HitDepE_BKG[0]->Fill(depE);
+      }else{
+         m_HitDepE_Phys_BMPGD->Fill(depE);
+         m_HitDepE_Phys->Fill(depE);
+      }
+   }
+
+   for(size_t iHit = 0; iHit < OuterMPGDBarrelHits_; iHit++){
+      Double_t hitR = std::sqrt(OuterMPGDBarrelHits_position_x[iHit]*OuterMPGDBarrelHits_position_x[iHit]\
+         + OuterMPGDBarrelHits_position_y[iHit]*OuterMPGDBarrelHits_position_y[iHit]\
+         + OuterMPGDBarrelHits_position_z[iHit]*OuterMPGDBarrelHits_position_z[iHit]);
+      Double_t hitT = OuterMPGDBarrelHits_time[iHit] - timeVtx;
+      Double_t t0Calc = hitR * 0.0034;
+      Int_t pTagId = _OuterMPGDBarrelHits_particle_index[iHit];
+      if(MCParticles_generatorStatus[pTagId] < 1999) m_HitTCalcT0Dispersion_Phys->Fill(hitT - t0Calc);
+      else m_HitTCalcT0Dispersion_BKG->Fill(hitT - t0Calc);
+
+      Double_t depE = OuterMPGDBarrelHits_eDep[iHit] * 1000; // Convert GeV to MeV
+      if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_HitDepE_BKG_BMPGD[4]->Fill(depE);
+         m_HitDepE_BKG[4]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_HitDepE_BKG_BMPGD[3]->Fill(depE);
+         m_HitDepE_BKG[3]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_HitDepE_BKG_BMPGD[2]->Fill(depE);
+         m_HitDepE_BKG[2]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_HitDepE_BKG_BMPGD[1]->Fill(depE);
+         m_HitDepE_BKG[1]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_HitDepE_BKG_BMPGD[0]->Fill(depE);
+         m_HitDepE_BKG[0]->Fill(depE);
+      }else{
+         m_HitDepE_Phys_BMPGD->Fill(depE);
+         m_HitDepE_Phys->Fill(depE);
+      }
+   }
+
+   for(size_t iHit = 0; iHit < ForwardMPGDEndcapHits_; iHit++){
+      Double_t hitR = std::sqrt(ForwardMPGDEndcapHits_position_x[iHit]*ForwardMPGDEndcapHits_position_x[iHit]\
+         + ForwardMPGDEndcapHits_position_y[iHit]*ForwardMPGDEndcapHits_position_y[iHit]\
+         + ForwardMPGDEndcapHits_position_z[iHit]*ForwardMPGDEndcapHits_position_z[iHit]);
+      Double_t hitT = ForwardMPGDEndcapHits_time[iHit] - timeVtx;
+      Double_t t0Calc = hitR * 0.0034;
+      Int_t pTagId = _ForwardMPGDEndcapHits_particle_index[iHit];
+      if(MCParticles_generatorStatus[pTagId] < 1999) m_HitTCalcT0Dispersion_Phys->Fill(hitT - t0Calc);
+      else m_HitTCalcT0Dispersion_BKG->Fill(hitT - t0Calc);
+
+      Double_t depE = ForwardMPGDEndcapHits_eDep[iHit] * 1000; // Convert GeV to MeV
+      if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_HitDepE_BKG_EMPGD[4]->Fill(depE);
+         m_HitDepE_BKG[4]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_HitDepE_BKG_EMPGD[3]->Fill(depE);
+         m_HitDepE_BKG[3]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_HitDepE_BKG_EMPGD[2]->Fill(depE);
+         m_HitDepE_BKG[2]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_HitDepE_BKG_EMPGD[1]->Fill(depE);
+         m_HitDepE_BKG[1]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_HitDepE_BKG_EMPGD[0]->Fill(depE);
+         m_HitDepE_BKG[0]->Fill(depE);
+      }else{
+         m_HitDepE_Phys_EMPGD->Fill(depE);
+         m_HitDepE_Phys->Fill(depE);
+      }
+   }
+
+   for(size_t iHit = 0; iHit < BackwardMPGDEndcapHits_; iHit++){
+      Double_t hitR = std::sqrt(BackwardMPGDEndcapHits_position_x[iHit]*BackwardMPGDEndcapHits_position_x[iHit]\
+         + BackwardMPGDEndcapHits_position_y[iHit]*BackwardMPGDEndcapHits_position_y[iHit]\
+         + BackwardMPGDEndcapHits_position_z[iHit]*BackwardMPGDEndcapHits_position_z[iHit]);
+      Double_t hitT = BackwardMPGDEndcapHits_time[iHit] - timeVtx;
+      Double_t t0Calc = hitR * 0.0034;
+      Int_t pTagId = _BackwardMPGDEndcapHits_particle_index[iHit];
+      if(MCParticles_generatorStatus[pTagId] < 1999) m_HitTCalcT0Dispersion_Phys->Fill(hitT - t0Calc);
+      else m_HitTCalcT0Dispersion_BKG->Fill(hitT - t0Calc);
+
+      Double_t depE = BackwardMPGDEndcapHits_eDep[iHit] * 1000; // Convert GeV to MeV
+      if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_HitDepE_BKG_EMPGD[4]->Fill(depE);
+         m_HitDepE_BKG[4]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_HitDepE_BKG_EMPGD[3]->Fill(depE);
+         m_HitDepE_BKG[3]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_HitDepE_BKG_EMPGD[2]->Fill(depE);
+         m_HitDepE_BKG[2]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_HitDepE_BKG_EMPGD[1]->Fill(depE);
+         m_HitDepE_BKG[1]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_HitDepE_BKG_EMPGD[0]->Fill(depE);
+         m_HitDepE_BKG[0]->Fill(depE);
+      }else{
+         m_HitDepE_Phys_EMPGD->Fill(depE);
+         m_HitDepE_Phys->Fill(depE);
+      }
+   }
+
+   for(size_t iHit = 0; iHit < TOFBarrelHits_; iHit++){
+      Double_t hitR = std::sqrt(TOFBarrelHits_position_x[iHit]*TOFBarrelHits_position_x[iHit]\
+         + TOFBarrelHits_position_y[iHit]*TOFBarrelHits_position_y[iHit]\
+         + TOFBarrelHits_position_z[iHit]*TOFBarrelHits_position_z[iHit]);
+      Double_t hitT = TOFBarrelHits_time[iHit] - timeVtx;
+      Double_t t0Calc = hitR * 0.0034;
+      Int_t pTagId = _TOFBarrelHits_particle_index[iHit];
+      if(MCParticles_generatorStatus[pTagId] < 1999) m_HitTCalcT0Dispersion_Phys->Fill(hitT - t0Calc);
+      else m_HitTCalcT0Dispersion_BKG->Fill(hitT - t0Calc);
+
+      Double_t depE = TOFBarrelHits_eDep[iHit] * 1000; // Convert GeV to MeV
+      if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_HitDepE_BKG[4]->Fill(depE);
+         m_HitDepE_BKG_BTOF[4]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_HitDepE_BKG[3]->Fill(depE);
+         m_HitDepE_BKG_BTOF[3]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_HitDepE_BKG[2]->Fill(depE);
+         m_HitDepE_BKG_BTOF[2]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_HitDepE_BKG[1]->Fill(depE);
+         m_HitDepE_BKG_BTOF[1]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_HitDepE_BKG[0]->Fill(depE);
+         m_HitDepE_BKG_BTOF[0]->Fill(depE);
+      }else{
+         m_HitDepE_Phys->Fill(depE);
+         m_HitDepE_Phys_BTOF->Fill(depE);
+      }
+   }
+
+   for(size_t iHit = 0; iHit < TOFEndcapHits_; iHit++){
+      Double_t hitR = std::sqrt(TOFEndcapHits_position_x[iHit]*TOFEndcapHits_position_x[iHit]\
+         + TOFEndcapHits_position_y[iHit]*TOFEndcapHits_position_y[iHit]\
+         + TOFEndcapHits_position_z[iHit]*TOFEndcapHits_position_z[iHit]);
+      Double_t hitT = TOFEndcapHits_time[iHit] - timeVtx;
+      Double_t t0Calc = hitR * 0.0034;
+      Int_t pTagId = _TOFEndcapHits_particle_index[iHit];
+      if(MCParticles_generatorStatus[pTagId] < 1999) m_HitTCalcT0Dispersion_Phys->Fill(hitT - t0Calc);
+      else m_HitTCalcT0Dispersion_BKG->Fill(hitT - t0Calc);
+
+      Double_t depE = TOFEndcapHits_eDep[iHit] * 1000; // Convert GeV to MeV
+      if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_HitDepE_BKG_ETOF[4]->Fill(depE);
+         m_HitDepE_BKG[4]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_HitDepE_BKG_ETOF[3]->Fill(depE);
+         m_HitDepE_BKG[3]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_HitDepE_BKG_ETOF[2]->Fill(depE);
+         m_HitDepE_BKG[2]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_HitDepE_BKG_ETOF[1]->Fill(depE);
+         m_HitDepE_BKG[1]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_HitDepE_BKG_ETOF[0]->Fill(depE);
+         m_HitDepE_BKG[0]->Fill(depE);
+      }else{
+         m_HitDepE_Phys->Fill(depE);
+         m_HitDepE_Phys_ETOF->Fill(depE);
+      }
+   }
+
+   for(size_t iHit = 0; iHit < B0TrackerHits_; iHit++){
+      Double_t hitR = std::sqrt(B0TrackerHits_position_x[iHit]*B0TrackerHits_position_x[iHit]\
+         + B0TrackerHits_position_y[iHit]*B0TrackerHits_position_y[iHit]\
+         + B0TrackerHits_position_z[iHit]*B0TrackerHits_position_z[iHit]);
+      Double_t hitT = B0TrackerHits_time[iHit] - timeVtx;
+      Double_t t0Calc = hitR * 0.0034;
+      Int_t pTagId = _B0TrackerHits_particle_index[iHit];
+      if(MCParticles_generatorStatus[pTagId] < 1999) m_HitTCalcT0Dispersion_Phys->Fill(hitT - t0Calc);
+      else m_HitTCalcT0Dispersion_BKG->Fill(hitT - t0Calc);
+
+      Double_t depE = B0TrackerHits_eDep[iHit] * 1000; // Convert GeV to MeV
+      if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_HitDepE_BKG[4]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_HitDepE_BKG[3]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_HitDepE_BKG[2]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_HitDepE_BKG[1]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_HitDepE_BKG[0]->Fill(depE);
+      }else{
+         m_HitDepE_Phys->Fill(depE);
+      }
+   }
+
+
+   for(size_t iHit = 0; iHit < ForwardOffMTrackerHits_; iHit++){
+      Double_t hitR = std::sqrt(ForwardOffMTrackerHits_position_x[iHit]*ForwardOffMTrackerHits_position_x[iHit]\
+         + ForwardOffMTrackerHits_position_y[iHit]*ForwardOffMTrackerHits_position_y[iHit]\
+         + ForwardOffMTrackerHits_position_z[iHit]*ForwardOffMTrackerHits_position_z[iHit]);
+      Double_t hitT = ForwardOffMTrackerHits_time[iHit] - timeVtx;
+      Double_t t0Calc = hitR * 0.0034;
+         Int_t pTagId = _ForwardOffMTrackerHits_particle_index[iHit];
+      if(MCParticles_generatorStatus[pTagId] < 1999) m_HitTCalcT0Dispersion_Phys->Fill(hitT - t0Calc);
+      else m_HitTCalcT0Dispersion_BKG->Fill(hitT - t0Calc);
+
+      Double_t depE = ForwardOffMTrackerHits_eDep[iHit] * 1000; // Convert GeV to MeV
+      if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_HitDepE_BKG[4]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_HitDepE_BKG[3]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_HitDepE_BKG[2]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_HitDepE_BKG[1]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_HitDepE_BKG[0]->Fill(depE);
+      }else{
+         m_HitDepE_Phys->Fill(depE);
+      }
+   }
+
+   for(size_t iHit = 0; iHit < ForwardRomanPotHits_; iHit++){
+      Double_t hitR = std::sqrt(ForwardRomanPotHits_position_x[iHit]*ForwardRomanPotHits_position_x[iHit]\
+         + ForwardRomanPotHits_position_y[iHit]*ForwardRomanPotHits_position_y[iHit]\
+         + ForwardRomanPotHits_position_z[iHit]*ForwardRomanPotHits_position_z[iHit]);
+      Double_t hitT = ForwardRomanPotHits_time[iHit] - timeVtx;
+      m_HitRTimeDispersion->Fill(hitR, hitT);
+      Double_t t0Calc = hitR * 0.0034;
+      Int_t pTagId = _ForwardRomanPotHits_particle_index[iHit];
+      if(MCParticles_generatorStatus[pTagId] < 1999) m_HitTCalcT0Dispersion_Phys->Fill(hitT - t0Calc);
+      else m_HitTCalcT0Dispersion_BKG->Fill(hitT - t0Calc);
+      m_CalibHitRTimeDispersion->Fill(hitR, hitT - t0Calc);
+
+      Double_t depE = ForwardRomanPotHits_eDep[iHit] * 1000; // Convert GeV to MeV
+      if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_HitDepE_BKG[4]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_HitDepE_BKG[3]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_HitDepE_BKG[2]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_HitDepE_BKG[1]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_HitDepE_BKG[0]->Fill(depE);
+      }else{
+         m_HitDepE_Phys->Fill(depE);
+      }
+   }
+
+   for(size_t iHit = 0; iHit < LumiSpecTrackerHits_; iHit++){
+      Double_t hitR = std::sqrt(LumiSpecTrackerHits_position_x[iHit]*LumiSpecTrackerHits_position_x[iHit]\
+         + LumiSpecTrackerHits_position_y[iHit]*LumiSpecTrackerHits_position_y[iHit]\
+         + LumiSpecTrackerHits_position_z[iHit]*LumiSpecTrackerHits_position_z[iHit]);
+      Double_t hitT = LumiSpecTrackerHits_time[iHit] - timeVtx;
+      Double_t t0Calc = hitR * 0.0034;
+      Int_t pTagId = _LumiSpecTrackerHits_particle_index[iHit];
+      if(MCParticles_generatorStatus[pTagId] < 1999) m_HitTCalcT0Dispersion_Phys->Fill(hitT - t0Calc);
+      else m_HitTCalcT0Dispersion_BKG->Fill(hitT - t0Calc);
+
+      Double_t depE = LumiSpecTrackerHits_eDep[iHit] * 1000; // Convert GeV to MeV
+      if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_HitDepE_BKG[4]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_HitDepE_BKG[3]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_HitDepE_BKG[2]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_HitDepE_BKG[1]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_HitDepE_BKG[0]->Fill(depE);
+      }else{
+         m_HitDepE_Phys->Fill(depE);
+      }
+   }
+
+
+   for(size_t iHit = 0; iHit < PFRICHHits_; iHit++){
+      Double_t hitR = std::sqrt(PFRICHHits_position_x[iHit]*PFRICHHits_position_x[iHit]\
+         + PFRICHHits_position_y[iHit]*PFRICHHits_position_y[iHit]\
+         + PFRICHHits_position_z[iHit]*PFRICHHits_position_z[iHit]);
+      Double_t hitT = PFRICHHits_time[iHit] - timeVtx;
+      Double_t t0Calc = hitR * 0.0034;
+      Int_t pTagId = _PFRICHHits_particle_index[iHit];
+      if(MCParticles_generatorStatus[pTagId] < 1999) m_HitTCalcT0Dispersion_Phys->Fill(hitT - t0Calc);
+      else m_HitTCalcT0Dispersion_BKG->Fill(hitT - t0Calc);
+
+      Double_t depE = PFRICHHits_eDep[iHit] * 1000; // Convert GeV to MeV
+      if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_HitDepE_BKG[4]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_HitDepE_BKG[3]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_HitDepE_BKG[2]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_HitDepE_BKG[1]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_HitDepE_BKG[0]->Fill(depE);
+      }else{
+         m_HitDepE_Phys->Fill(depE);
+      }
+   }
+
+
+   for(size_t iHit = 0; iHit < TaggerTrackerHits_; iHit++){
+      Double_t hitR = std::sqrt(TaggerTrackerHits_position_x[iHit]*TaggerTrackerHits_position_x[iHit]\
+         + TaggerTrackerHits_position_y[iHit]*TaggerTrackerHits_position_y[iHit]\
+         + TaggerTrackerHits_position_z[iHit]*TaggerTrackerHits_position_z[iHit]);
+      Double_t hitT = TaggerTrackerHits_time[iHit] - timeVtx;
+      Double_t t0Calc = hitR * 0.0034;
+      Int_t pTagId = _TaggerTrackerHits_particle_index[iHit];
+      if(MCParticles_generatorStatus[pTagId] < 1999) m_HitTCalcT0Dispersion_Phys->Fill(hitT - t0Calc);
+      else m_HitTCalcT0Dispersion_BKG->Fill(hitT - t0Calc);
+
+      Double_t depE = TaggerTrackerHits_eDep[iHit] * 1000; // Convert GeV to MeV
+      if(MCParticles_generatorStatus[pTagId] > 5999){
+         m_HitDepE_BKG[4]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 4999){
+         m_HitDepE_BKG[3]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 3999){
+         m_HitDepE_BKG[2]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 2999){
+         m_HitDepE_BKG[1]->Fill(depE);
+      }else if(MCParticles_generatorStatus[pTagId] > 1999){
+         m_HitDepE_BKG[0]->Fill(depE);
+      }else{
+         m_HitDepE_Phys->Fill(depE);
+      }
+   }
+
+
+
+
 }
 
 
@@ -633,13 +2883,74 @@ void McPsCheck::ResetValuesForEachEvent(){
 void McPsCheck::WriteHists(){
    oFile->cd();
 
-
    m_hMCEtaDist->Write();
    m_hMCThetaDist->Write();
+
+   m_HitRTimeDispersion->Write();
+   m_CalibHitRTimeDispersion->Write();
+   m_HitTCalcT0Dispersion->Write();
 
    m_hEtaPt_All->Write();
    m_hEtaPt_ChMcP->Write();
    m_hEtaPt_NMcP->Write();
+
+   m_hEtaKinE_All->Write();
+   m_hEtaKinE_ChMcP->Write();
+   m_hEtaKinE_NMcP->Write();
+
+   m_hEtaAllE_All->Write();
+   m_hEtaAllE_ChMcP->Write();
+   m_hEtaAllE_NMcP->Write();
+
+   for(size_t iBkg = 0; iBkg < 5; iBkg++){
+      m_hZRHitRatio_All_BKG[iBkg]->Write();
+      m_hZRHitRatio_ChMcP_BKG[iBkg]->Write();
+      m_hZRHitRatio_NMcP_BKG[iBkg]->Write();
+
+      m_EveCountWithDetHits_Trk_BKG[iBkg]->Write();
+      m_EveCountWithDetHits_Cal_BKG[iBkg]->Write();
+
+      m_HitsPerEveWithDetHits_Trk_BKG[iBkg]->Write();
+      m_HitsPerEveWithDetHits_Cal_BKG[iBkg]->Write();
+
+   }
+
+   m_NumOfEventsOfBKG->Write();
+
+   m_CollSourcePosiZR->Write();
+
+   m_EveCountWithDetHits_Trk->Write();
+   m_EveCountWithDetHits_Cal->Write();
+   m_HitsPerEveWithDetHits_Trk->Write();
+   m_HitsPerEveWithDetHits_Cal->Write();
+
+
+   m_hEta_All->Write();
+   m_hEta_BTOF->Write();
+   m_hEta_ETOF->Write();
+
+   m_HitTCalcT0Dispersion_Phys->Write();
+   m_HitTCalcT0Dispersion_BKG->Write();
+   m_HitTCalcT0Dispersion_Phys_BTOF->Write();
+   m_HitTCalcT0Dispersion_BKG_BTOF->Write();
+
+   m_HitDepE_Phys->Write();
+   m_HitDepE_Phys_BSVT->Write();
+   m_HitDepE_Phys_ESVT->Write();
+   m_HitDepE_Phys_BMPGD->Write();
+   m_HitDepE_Phys_EMPGD->Write();
+   m_HitDepE_Phys_BTOF->Write();
+   m_HitDepE_Phys_ETOF->Write();
+   for(size_t iBkg = 0; iBkg < 5; iBkg++){
+      m_HitDepE_BKG[iBkg]->Write();
+      
+      m_HitDepE_BKG_BSVT[iBkg]->Write();
+      m_HitDepE_BKG_ESVT[iBkg]->Write();
+      m_HitDepE_BKG_BMPGD[iBkg]->Write();
+      m_HitDepE_BKG_EMPGD[iBkg]->Write();
+      m_HitDepE_BKG_BTOF[iBkg]->Write();
+      m_HitDepE_BKG_ETOF[iBkg]->Write();
+   }
 
 
    oFile->Close();
