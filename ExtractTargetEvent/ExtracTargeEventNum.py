@@ -1,10 +1,10 @@
 import ROOT
 
-f_in = ROOT.TFile.Open("../../../inputFiles/pythia500kHz_timeframe_newGeo.root")
-f_out = ROOT.TFile("./oFIle.root", "RECREATE")
+f_in = ROOT.TFile.Open("/home/tkumaoka/eic/inputFiles/bkgMix/BE10x100/Q2eq1/pythia8NCDIS_10x100_minQ2=1_WBKG.edm4hep.root")
+f_out = ROOT.TFile("/home/tkumaoka/eic/inputFiles/testOneEvents/pythia8NCDIS_10x100_minQ2eq1_WBKG.edm2hep.root", "RECREATE")
 
 # you can extrackt any entry numbers you want
-target_entries = {803}
+target_entries = {0, 1, 2, 3, 4}
 
 for key in f_in.GetListOfKeys():
     obj = key.ReadObj()

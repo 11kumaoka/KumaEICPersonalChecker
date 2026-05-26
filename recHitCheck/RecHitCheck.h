@@ -14,8 +14,8 @@
 // Additionally, you need to modify Algorithm.cc and compile.C
 // KumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKumaKuma 
 
-#ifndef triggerCombineChecker_h
-#define triggerCombineChecker_h
+#ifndef RecHitCheck_h
+#define RecHitCheck_h
 
 // Header file for the classes stored in the TTree if any.
 #include <vector>
@@ -49,14 +49,14 @@
 #include <TLatex.h>
 
 
-class triggerCombineChecker {
+class RecHitCheck {
 public :
    TTree          *fChain;   //!pointer to the analyzed TTree or TChain
    Int_t           fCurrent; //!current Tree number in a TChain
 
    // Fixed size dimensions of array or collections stored in the TTree if any. 
-   triggerCombineChecker(TTree *tree=0, std::string iFileName="", std::string oFileName="");
-   virtual ~triggerCombineChecker();
+   RecHitCheck(TTree *tree=0, std::string iFileName="", std::string oFileName="");
+   virtual ~RecHitCheck();
    virtual Int_t    Cut(Long64_t entry);
    virtual Int_t    GetEntry(Long64_t entry);
    virtual Long64_t LoadTree(Long64_t entry);
@@ -69,7 +69,6 @@ public :
    std::string iFileName = "";
    std::string oFileName = "";
    TFile *oFile; // output root file
-
 
    #include "defRootVariables.h"
    #include "defRootBranches.h"
@@ -136,22 +135,10 @@ public :
 
 
    // histograms as output
-   TH1D* m_hDetNumOfHits;
-   TH2D* m_hDetHitsCombination;
-
-   TH2D* m_hEventDisplayZR_Det;
-   TH2D* m_hEventDisplayZR_Det_TF;
-
-   TH1D* m_hTriggerCountsCheck; // histogram for trigger types
-   TH1D* m_hTriggerCounts_All; // histogram for trigger types
-   TH1D* m_hTriggerCounts_ACLGAD; // histogram for trigger types
-   TH1D* m_hTriggerCounts_MPGD; // histogram for trigger types
-   TH1D* m_hTriggerCounts_MAPS; // histogram for trigger types
 
    TH1D* m_hMCEtaDist; // 
    TH1D* m_hMCThetaDist; // 
 
-   TH2D* m_hMomEventDisplays[8];
 
 
    // == member functions == // own function
@@ -188,177 +175,17 @@ public :
    bool m_bOncePhysicsTriggered = false;
    int checkCount = 0;
 
-   void HitTimeCalibration(Double_t timeOffSet);
-   Double_t MakeRandomTimeOffset(Int_t randomSeed);
-   Double_t FindFirstPhysParticle();
-
-   void DetHitCheck(std::vector<SimTrackerHitKuma > simCalHits, TH1D* hNumOfHitLists, TH2D* hDetHitLists);
-
-   Double_t HistCriticalValueEstimation(Double_t confidence, TH1D* hist);
    
-   void FillEventDisplay(Double_t sTime, Double_t eTime, bool bTF);
+   Double_t MakeRandomTimeOffset(Int_t randomSeed);
+   // Double_t FindFirstPhysParticle();
 
-   inline Double_t HitTimeCalibrationByR(Double_t hitTime, Double_t hitR){
-      // return hitTime - 0.003*hitR;
-
-      Double_t calibTime = (hitR - 91.7)/279;
-      return hitTime - calibTime;
-   };
 
    // == inherited functions == //
-   std::vector<SimTrackerHitKuma> LoadInputHits();
+   std::vector<SimTrackerHitKuma> LoadInputTrkHits();
    std::vector<SimTrackerHitKuma> LoadInputCalHits();
 
-   void thetaPhiBinCalc(SimTrackerHitKuma& simHitsKuma, Int_t hitId,\
-      Int_t& thetaID1, Int_t& phiID1, Int_t& thetaID2, Int_t& phiID2);
-
-
-
-   // === s === For Event Display ===========
-
-   struct Vec3 {
-      double x{};
-      double y{};
-      double z{};
-   };
-
-   struct Particle {
-      Vec3 vertex;
-      Vec3 momentum;
-      Vec3 endpoint;
-      int pdg{};
-      double charge{};
-      bool hasEndpoint{false};
-
-      std::vector<int> parents;
-      std::vector<int> daughters;
-   };
-
-   struct Event {
-      std::vector<Particle> particles;
-   };
-
-   double mag(const Vec3& v) {
-      return std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
-   }
-
-   Vec3 normalize(const Vec3& v) {
-      const double m = mag(v);
-      if (m < 1e-12) return {0.0, 0.0, 0.0};
-      return {v.x / m, v.y / m, v.z / m};
-   }
-
-   Vec3 add(const Vec3& a, const Vec3& b) {
-      return {a.x + b.x, a.y + b.y, a.z + b.z};
-   }
-
-   Vec3 sub(const Vec3& a, const Vec3& b) {
-      return {a.x - b.x, a.y - b.y, a.z - b.z};
-   }
-
-   Vec3 scale(const Vec3& v, double s) {
-      return {v.x * s, v.y * s, v.z * s};
-   }
-
-   int colorFromPDG(int pdg) {
-      const int apdg = std::abs(pdg);
-      if (apdg == 11)   return kAzure + 1;    // e
-      if (apdg == 13)   return kGreen + 2;    // mu
-      if (apdg == 211)  return kRed + 1;      // pi
-      if (apdg == 321)  return kOrange + 7;   // K
-      if (apdg == 2212) return kMagenta + 1;  // proton
-      if (apdg == 22)   return kYellow + 1;   // gamma
-      if (apdg == 2112) return kGray + 2;     // neutron
-      return kWhite;
-   }
-
-   Vec3 getTrackEnd(const Particle& p, double fallbackLength = 300.0) {
-      if (p.hasEndpoint) {
-         return p.endpoint;
-      }
-
-      const Vec3 dir = normalize(p.momentum);
-      if (mag(dir) < 1e-12) {
-         return p.vertex;
-      }
-      return add(p.vertex, scale(dir, fallbackLength));
-   }
-
-   void computeEventBounds(
-      const Event& ev,
-      double& xmin, double& xmax,
-      double& ymin, double& ymax,
-      double& zmin, double& zmax,
-      double fallbackLength = 300.0
-   ) {
-      bool first = true;
-
-      for (const auto& p : ev.particles) {
-         const Vec3 a = p.vertex;
-         const Vec3 b = getTrackEnd(p, fallbackLength);
-
-         const Vec3 pts[2] = {a, b};
-         for (const auto& q : pts) {
-            if (first) {
-               xmin = xmax = q.x;
-               ymin = ymax = q.y;
-               zmin = zmax = q.z;
-               first = false;
-            } else {
-               xmin = std::min(xmin, q.x);
-               xmax = std::max(xmax, q.x);
-               ymin = std::min(ymin, q.y);
-               ymax = std::max(ymax, q.y);
-               zmin = std::min(zmin, q.z);
-               zmax = std::max(zmax, q.z);
-            }
-         }
-      }
-
-      if (first) {
-         xmin = ymin = zmin = -1.0;
-         xmax = ymax = zmax =  1.0;
-         return;
-      }
-
-      const double dx = xmax - xmin;
-      const double dy = ymax - ymin;
-      const double dz = zmax - zmin;
-      const double margin = 0.15;
-
-      xmin -= std::max(dx * margin, 1.0);
-      xmax += std::max(dx * margin, 1.0);
-      ymin -= std::max(dy * margin, 1.0);
-      ymax += std::max(dy * margin, 1.0);
-      zmin -= std::max(dz * margin, 1.0);
-      zmax += std::max(dz * margin, 1.0);
-   }
-
-   std::vector<Event> m_eventsForED;
-   std::vector<std::vector<SimTrackerHitKuma > > m_SimTrackerHitsForED;
-   std::vector<std::vector<SimTrackerHitKuma > > m_SimCalHitsForED;
-
-   TH3D* m_hEventDisplays[8];
-   Int_t m_iDisplayCount = 0;
-
-   void recordEventsForED();
-   void drawOneEvent(const Event& ev, int eventIndex, double fallbackLength = 300.0);
-   void drawEightEvents(double fallbackLength = 300.0);
-
-   
-   // === e === For Event Display ===========
 
 };
 
 
 #endif
-
-// #ifndef triggerCombineChecker_cxx
-// #define triggerCombineChecker_cxx
-
-
-// #endif // #ifdef triggerCombineChecker_cxx
-
-
-
-
