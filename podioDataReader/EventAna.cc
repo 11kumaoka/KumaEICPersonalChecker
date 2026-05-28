@@ -8,20 +8,31 @@ EventAna::EventAna(const std::string& inputFile, const std::string& outputFile) 
 }
 
 
-void EventAna::Loop() {
+void EventAna::EventLoop() {
     OFileInit();
-    const auto nEvents = m_reader.getEntries("events");
+    auto nEvents = m_reader.getEntries("events");
     std::cout << "Number of events = " << nEvents << std::endl;
 
+    bool bTargetEV = false;
+    m_vTargetEvents = {8, 10};
+
+    // Int_t nEvents = 1000;
+    nEvents= 5;
+    if(bTargetEV) nEvents = m_vTargetEvents.size();
+
     for (unsigned iEvent = 0; iEvent < nEvents; ++iEvent) {
+        unsigned tempIEvent = iEvent;
+        if(bTargetEV) iEvent =  m_vTargetEvents.at(iEvent);
+        m_pubEvNum = iEvent;
+
         std::cout << "== event " << iEvent << " ==" << std::endl;
         auto frame = podio::Frame(m_reader.readEntry("events", iEvent));
 
         m_trkDetsHits = LoadTrackerHitsFromFrame(frame);
 
         ResetValuesForEachEvent();
-        if (iEvent >= 4) break;
 
+        iEvent = tempIEvent;
     }
     OFileWrite();
 
