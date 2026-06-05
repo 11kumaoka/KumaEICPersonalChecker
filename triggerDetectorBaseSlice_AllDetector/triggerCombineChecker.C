@@ -794,7 +794,7 @@ void triggerCombineChecker::HistInit(){
    }
    m_hDetHitsCombination->GetXaxis()->SetBinLabel(9, "CentralTrackers");
    m_hDetHitsCombination->GetYaxis()->SetBinLabel(9, "CentralTrackers");
-
+whi
    m_hEventDisplayZR_Det = new TH2D(
       "m_hEventDisplayZR_Det",
       "Event Display; z [mm]; r [mm]",

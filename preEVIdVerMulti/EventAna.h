@@ -38,8 +38,6 @@
 #include <edm4eic/RawTrackerHitCollection.h>
 #include <edm4eic/MCRecoTrackerHitAssociationCollection.h>
 #include "edm4eic/TrackerHitCollection.h"
-#include <edm4eic/ClusterCollection.h>
-#include <edm4eic/MCRecoClusterParticleAssociationCollection.h>
 
 #include "InputDataConfig.h"
 #include "SimTrackerHitKuma.h"
@@ -53,9 +51,7 @@ public:
 
 private:
     SimTrackerHitKuma makeTrkHitsV(const edm4eic::TrackerHitCollection& podioHits);
-    SimTrackerHitKuma makeCalHitsV(const edm4eic::ClusterCollection& podioHits);
     std::vector<SimTrackerHitKuma> LoadTrackerHitsFromFrame(const podio::Frame& frame);
-    std::vector<SimTrackerHitKuma> LoadCalHitsFromFrame(const podio::Frame& frame);
 
     void OFileInit();
     void EditHists();
@@ -65,11 +61,8 @@ private:
     Double_t FindPhysCollTime(const podio::Frame& frame);
 
     void FillEachSubDetRecDepE(const podio::Frame& frame);
-    void FillEachSubDetDepE();
 
-    // inline Double_t calibDeltaT;
-    Double_t calibT(Double_t hitT, Double_t hitR);
-    void FillHitTimesDist(const podio::Frame& frame, Double_t vtxTime);
+    Double_t TrigCTRBarrel(Int_t nTS, std::vector<SimTrackerHitKuma> m_trkDetsHits);
 
 private:
     std::string m_iFileName;
@@ -82,10 +75,17 @@ private:
     Int_t m_pubEvNum = 0;
 
     std::vector<SimTrackerHitKuma> m_trkDetsHits;
-    std::vector<SimTrackerHitKuma> m_calDetsHits;
 
-    double m_timeWindow = 2000.0;
-    double m_timeSliceWidth = 20.0;
+    Double_t m_timeWindow = 2000.0;
+    Double_t m_timeSliceWidth = 20.0;
+    Double_t m_trkDetTimeReso[3] = {2000., 20., 0.03}; //ns
+
+    Double_t physTimeWMin = -5.;// ns
+    Double_t physTimeWMax = 10.;// ns
+
+    Int_t threNTrigMultiHits[1] ={10};
+    Int_t m_trigCTRBarrelDetIniHitID[6] = {};
+    
 
     // TOFBarrelRecHits, TOFEndcapRecHits, BackwardMPGDEndcapRecHits, ForwardMPGDEndcapRecHits, MPGDBarrelRecHits, OuterMPGDBarrelRecHits, SiBarrelVertexRecHits, SiBarrelTrackerRecHits, SiEndcapTrackerRecHits, B0TrackerRecHits
     Int_t m_TrackDetColors[10] = {880+10, 880+10, 880-2, 880-2, 880-2, 880-2, 880+4, 880+2, 880+2, 880+10,};
@@ -98,32 +98,11 @@ private:
     Int_t m_BKGColors[6] = {820+4, 860+10, 860-3, 800-3, 840+9, 900+9};
 
     std::array<TString, 6> m_physKindShortName = {"Phys", "SR", "Brems", "Coulomb", "Touscheck", "PGas"};
-    std::array<TString, 9> m_trkShortDetName = {"BSi", "ESi", "BMPGD", "EMPGD", "BTOF", "ETOF", "B0", "FOffMT", "FRoman"};
-    std::array<TString, 6> m_calShortDetName = {"EcalB0","EcalB","EcalEN","EcalEP","EcalFFZDCC","EcalLumi"};
+    std::array<TString, 7> m_trkShortDetName = {"BSi", "ESi", "BMPGD", "EMPGD", "BTOF", "ETOF", "B0"};
 
 
+    TH1D* m_hDetRecEDep[7][6];
 
-    TH1D* m_hBSiRecDepE;
-    TH1D* m_hESiRecDepE;
-    TH1D* m_hBMPGDRecDepE;
-    TH1D* m_hEMPGDRecDepE;
-    TH1D* m_hBTOFRecDepE;
-    TH1D* m_hETOFRecDepE;
-    TH1D* m_hB0RecDepE;
-
-    TH1D* m_hTrkRecEDep[9][6];
-    TH1D* m_hCalRecEDep[6][6];
-
-    TH1D* m_hTrkTimeDist[7][2]; // Det:BMPGD, EMPGD, BTOF, ETOF, B0, FOffMT, FRoman / Hit: Phys, Bkg
-    TH1D* m_hTrkNumOfHitsInTS[7][2]; //  Det:BMPGD, EMPGD, BTOF, ETOF, B0, FOffMT, FRoman / Hit: Phys, Bkg
-
-    TH1D* m_hCalDetTimeDist[6][2]; // Det:BMPGD, EMPGD, BTOF, ETOF, B0, FOffMT, FRoman / Hit: Phys, Bkg
-    TH1D* m_hCalDetNumOfHitsInTS[6][2]; //  Det:BMPGD, EMPGD, BTOF, ETOF, B0, FOffMT, FRoman / Hit: Phys, Bkg
-
-    TH1D* m_hTrigDetNumOfHitsInTS[3][2]; //  Det:BMPGD+TOF, EMPGD+TOF, B0 / Hit: Phys+BKG, Bkg
-
-    Int_t m_numOfPhysTrig = 0;
-    Int_t m_numOfFakeTrig = 0;
     TH1D* m_hTrigEfficiency;
 };
 

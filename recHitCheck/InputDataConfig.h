@@ -6,7 +6,7 @@
 
 namespace InputDataConfig {
     
-    inline constexpr std::array<std::string_view, 10> kTrkSimCollections = {
+    inline constexpr std::array<std::string_view, 12> kTrkSimCollections = {
         "VertexBarrelHits",
         "SiBarrelHits",
         "TrackerEndcapHits",
@@ -16,12 +16,14 @@ namespace InputDataConfig {
         "ForwardMPGDEndcapHits",
         "TOFBarrelHits",
         "TOFEndcapHits",
-        "B0TrackerHits"
+        "B0TrackerHits",
+        "ForwardOffMTrackerHits",
+        "ForwardRomanPotHits"
     };
 
-    inline constexpr std::array<std::string_view, 10> kTrkRawCollections = {
+    inline constexpr std::array<std::string_view, 12> kTrkRawCollections = {
         "SiBarrelVertexRawHits",
-        "SiBarrelTrackerRawHits",
+        "SiBarrelRawHits",
         "SiEndcapTrackerRawHits",
         "MPGDBarrelRawHits",
         "OuterMPGDBarrelRawHits",
@@ -29,12 +31,14 @@ namespace InputDataConfig {
         "ForwardMPGDEndcapRawHits",
         "TOFBarrelRawHits",
         "TOFEndcapRawHits",
-        "B0TrackerRawHits"
+        "B0TrackerRawHits",
+        "ForwardOffMTrackerRawHits",
+        "ForwardRomanPotRawHits"
     };
 
-    inline constexpr std::array<std::string_view, 10> kTrkRawAssociationCollections = {
+    inline constexpr std::array<std::string_view, 12> kTrkRawAssociationCollections = {
         "SiBarrelVertexRawHitAssociations",
-        "SiBarrelTrackerRawHitAssociations",
+        "SiBarrelRawHitAssociations",
         "SiEndcapTrackerRawHitAssociations",
         "MPGDBarrelRawHitAssociations",
         "OuterMPGDBarrelRawHitAssociations",
@@ -42,10 +46,12 @@ namespace InputDataConfig {
         "ForwardMPGDEndcapRawHitAssociations",
         "TOFBarrelRawHitAssociations",
         "TOFEndcapRawHitAssociations",
-        "B0TrackerRawHitAssociations"
+        "B0TrackerRawHitAssociations",
+        "ForwardOffMTrackerRawHitAssociations",
+        "ForwardRomanPotRawHitAssociations"
     };
 
-    inline constexpr std::array<std::string_view, 10> kTrkRecCollections = {
+    inline constexpr std::array<std::string_view, 12> kTrkRecCollections = {
         "SiBarrelVertexRecHits",
         "SiBarrelTrackerRecHits",
         "SiEndcapTrackerRecHits",
@@ -55,9 +61,44 @@ namespace InputDataConfig {
         "ForwardMPGDEndcapRecHits",
         "TOFBarrelRecHits",
         "TOFEndcapRecHits",
-        "B0TrackerRecHits"
+        "B0TrackerRecHits",
+        "ForwardOffMTrackerRecHits",
+        "ForwardRomanPotRecHits"
     };
 
+    inline constexpr std::array<std::string_view, 6> kCalCluCollections = {
+        "B0ECalClusters",
+        "EcalBarrelClusters",
+        "EcalEndcapNClusters",
+        "EcalEndcapPClusters", 
+        "EcalFarForwardZDCClusters",
+        "EcalLumiSpecClusters"
+    };
+        // "HcalBarrelClusters",
+        // "HcalEndcapNClusters",
+        // "HcalEndcapPInsertClusters",
+        // "HcalFarForwardZDCClusters",
+        // "LFHCALClusters",
+        // "EcalBarrelImagingClusters",
+        // "EcalBarrelScFiClusters",
+
+
+    inline constexpr std::array<std::string_view, 6> kCalClusterAssociations = {
+        "B0ECalClusterAssociations",
+        "EcalBarrelClusterAssociations",
+        "EcalEndcapNClusterAssociations",
+        "EcalEndcapPClusterAssociations",
+        "EcalFarForwardZDCClusterAssociations",
+        "EcalLumiSpecClusterAssociations"
+    };
+
+        // "HcalBarrelClusterAssociations",
+        // "HcalEndcapNClusterAssociations",
+        // "HcalEndcapPInsertClusterAssociations",
+        // "HcalFarForwardZDCClusterAssociations",
+        // "LFHCALClusterAssociations",
+        // "EcalBarrelImagingClusterAssociations",
+        // "EcalBarrelScFiClusterAssociations"
 
 } // namespace InputDataConfig
 

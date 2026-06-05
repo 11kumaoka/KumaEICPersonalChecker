@@ -13,6 +13,7 @@ SimTrackerHitKuma EventAna::makeTrkHitsV(const edm4eic::TrackerHitCollection& po
         detHits.loadHits(hit.getCellID(), hit.getEdep(),hit.getTime(), pos.x, pos.y, pos.z);
     }
     return detHits;
+
 }
 
 std::vector<SimTrackerHitKuma> EventAna::LoadTrackerHitsFromFrame(const podio::Frame& frame)
@@ -26,30 +27,5 @@ std::vector<SimTrackerHitKuma> EventAna::LoadTrackerHitsFromFrame(const podio::F
         // std::cout << "Loaded " << collectionName<< " : " << hits.size()<< " hits" << std::endl;
     }
     return trkDetsHits;
+
 }
-
-
-SimTrackerHitKuma EventAna::makeCalHitsV(const edm4eic::ClusterCollection& podioHits)
-{
-    SimTrackerHitKuma detHits;
-    detHits.reserveHits(podioHits.size());
-    for (const auto& hit : podioHits) {
-        const auto pos = hit.getPosition();
-        detHits.loadHits(hit.getType(), hit.getEnergy(),hit.getTime(), pos.x, pos.y, pos.z);
-    }
-    return detHits;
-}
-
-std::vector<SimTrackerHitKuma> EventAna::LoadCalHitsFromFrame(const podio::Frame& frame)
-{
-    std::vector<SimTrackerHitKuma> calDetsHits;
-    calDetsHits.reserve(InputDataConfig::kCalCluCollections.size());
-
-    for (const auto collectionName : InputDataConfig::kCalCluCollections) {
-        const auto& hits = frame.get<edm4eic::ClusterCollection>(std::string(collectionName));
-        calDetsHits.push_back(makeCalHitsV(hits));
-        // std::cout << "Loaded " << collectionName<< " : " << hits.size()<< " hits" << std::endl;
-    }
-    return calDetsHits;
-}
-
