@@ -380,7 +380,7 @@ void EventAna::OFileInit() {
 
     for(size_t iCalDet = 0; iCalDet < 6; iCalDet++){
         for(size_t iPKind = 0; iPKind < 6; iPKind++){
-            histName = TString::Format("m_hCalDetRecDepE_%s_%s",m_trkShortDetName[iCalDet].Data(),m_physKindShortName[iPKind].Data());
+            histName = TString::Format("m_hCalDetRecDepE_%s_%s",m_calShortDetName[iCalDet].Data(),m_physKindShortName[iPKind].Data());
             histTitle = TString::Format("%s;eDep [MeV];count",histName.Data());
             m_hCalRecEDep[iCalDet][iPKind] = new TH1D(histName.Data(), histTitle.Data(), 100, 0, 0.50);
         }
@@ -390,11 +390,11 @@ void EventAna::OFileInit() {
         for(size_t iPKind = 0; iPKind < 2; iPKind++){
             TString tempPhysName = "Phys";
             if(iPKind == 1) tempPhysName = "BKG";
-            histName = TString::Format("m_hCalDetTimeDist%s_%s",m_trkShortDetName[iCalDet].Data(),tempPhysName.Data());
+            histName = TString::Format("m_hCalDetTimeDist%s_%s",m_calShortDetName[iCalDet].Data(),tempPhysName.Data());
             histTitle = TString::Format("%s;time_{calib} [ns];count",histName.Data());
             m_hCalDetTimeDist[iCalDet][iPKind] = new TH1D(histName.Data(), histTitle.Data(), 220, -20, 200);
 
-            histName = TString::Format("m_hCalDetNumOfHitsInTS%s_%s",m_trkShortDetName[iCalDet].Data(),tempPhysName.Data());
+            histName = TString::Format("m_hCalDetNumOfHitsInTS%s_%s",m_calShortDetName[iCalDet].Data(),tempPhysName.Data());
             histTitle = TString::Format("%s;number of hits;count",histName.Data());
             m_hCalDetNumOfHitsInTS[iCalDet][iPKind] = new TH1D(histName.Data(), histTitle.Data(), 20, 0, 20);
         }
