@@ -1503,7 +1503,6 @@ public :
    void FillHitTimeDispersionForMixBKG();
 
    // === s === For Event Display ===========
-
    struct Vec3 {
       double x{};
       double y{};

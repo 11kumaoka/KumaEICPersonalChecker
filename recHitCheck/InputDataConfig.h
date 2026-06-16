@@ -66,6 +66,91 @@ namespace InputDataConfig {
         "ForwardRomanPotRecHits"
     };
 
+    inline constexpr std::array<std::string_view, 7> kCalSimCollections = {
+        "B0ECalHits",
+        "EcalBarrelImagingHits",
+        "EcalBarrelScFiHits",
+        "EcalEndcapNHits",
+        "EcalEndcapPHits",
+        "EcalFarForwardZDCHits",
+        "EcalLumiSpecHits"
+    };
+
+    inline constexpr std::array<std::string_view, 7> kCalSimAssociations = {
+        "B0ECalHitAssociations",
+        "EcalBarrelImagingHitAssociations",
+        "EcalBarrelScFiHitAssociations",
+        "EcalEndcapNHitAssociations",
+        "EcalEndcapPHitAssociations",
+        "EcalFarForwardZDCHitAssociations",
+        "EcalLumiSpecHitAssociations"
+    };
+
+    inline constexpr std::array<std::string_view, 7> kCalRawCollections = {
+        "B0ECalRawHits",
+        "EcalBarrelImagingRawHits",
+        "EcalBarrelScFiRawHits",
+        "EcalEndcapNRawHits",
+        "EcalEndcapPRawHits",
+        "EcalFarForwardZDCRawHits",
+        "EcalLumiSpecRawHits"
+    };
+        // "HcalBarrelRawHits",
+        // "HcalEndcapNRawHits",
+        // "HcalEndcapPInsertRawHits",
+        // "HcalFarForwardZDCRawHits",
+        // "LFHCALRawHits",
+        // "EcalBarrelImagingRawHits",
+        // "EcalBarrelScFiRawHits",
+
+    inline constexpr std::array<std::string_view, 7> kCalRawAssociations = {
+        "B0ECalRawHitAssociations",
+        "EcalBarrelImagingRawHitAssociations",
+        "EcalBarrelScFiRawHitAssociations",
+        "EcalEndcapNRawHitAssociations",
+        "EcalEndcapPRawHitAssociations",
+        "EcalFarForwardZDCRawHitAssociations",
+        "EcalLumiSpecRawHitAssociations"
+    };
+
+
+    inline constexpr std::array<std::string_view, 7> kCalRecCollections = {
+        "B0ECalRecHits",
+        "EcalBarrelImagingRecHits",
+        "EcalBarrelScFiRecHits",
+        "EcalEndcapNRecHits",
+        "EcalEndcapPRecHits",
+        "EcalFarForwardZDCRecHits",
+        "EcalLumiSpecRecHits"
+    };
+        // "HcalBarrelRecHits",
+        // "HcalEndcapNRecHits",
+        // "HcalEndcapPInsertRecHits",
+        // "HcalFarForwardZDCRecHits",
+        // "LFHCALRecHits",
+        // "EcalBarrelImagingRecHits",
+        // "EcalBarrelScFiRecHits",
+
+
+    inline constexpr std::array<std::string_view, 7> kCalRecAssociations = {
+        "B0ECalRecHitsAssociations",
+        "EcalBarrelImagingRecHitsAssociations",
+        "EcalBarrelScFiRecHitsAssociations",
+        "EcalEndcapNRecHitsAssociations",
+        "EcalEndcapPRecHitsAssociations",
+        "EcalFarForwardZDCRecHitsAssociations",
+        "EcalLumiSpecRecHitsAssociations"
+    };
+
+        // "HcalBarrelClusterAssociations",
+        // "HcalEndcapNClusterAssociations",
+        // "HcalEndcapPInsertClusterAssociations",
+        // "HcalFarForwardZDCClusterAssociations",
+        // "LFHCALClusterAssociations",
+        // "EcalBarrelImagingClusterAssociations",
+        // "EcalBarrelScFiClusterAssociations"
+
+
     inline constexpr std::array<std::string_view, 6> kCalCluCollections = {
         "B0ECalClusters",
         "EcalBarrelClusters",
@@ -83,7 +168,7 @@ namespace InputDataConfig {
         // "EcalBarrelScFiClusters",
 
 
-    inline constexpr std::array<std::string_view, 6> kCalClusterAssociations = {
+    inline constexpr std::array<std::string_view, 6> kCalCluAssociations = {
         "B0ECalClusterAssociations",
         "EcalBarrelClusterAssociations",
         "EcalEndcapNClusterAssociations",

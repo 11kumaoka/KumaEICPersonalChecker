@@ -103,25 +103,24 @@ private:
    
 // enum EColor { kWhite =0, kBlack =1, kGray=920, kRed =632, kGreen =416, kBlue=600, kYellow=400, kMagenta=616, kCyan=432, kOrange=800, kSpring=820, kTeal=840, kAzure =860kViolet =880, kPink=900 };
    const Int_t m_kDetColors[9] = {
-      860 + 2, // kAzure：MAPS
+      860 - 1, // kAzure：MAPS
       880 + 1, // kPurple：MPGD
       860 + 8, //840 + 2, // kTeal： AC-LGAD
       800 + 1, // kOrange：ECal
       860 - 2, // kAzure：HCal
-      800 - 4, // kOrange：RICH
-      860 - 7, // kAzure：DIRC
+      800 - 5, // kOrange：RICH
+      860 + 3, // kAzure：DIRC
       632 - 6, // kRed：Far Forward
-      600- 2  // kBlue：Far Backward
+      600 - 2  // kBlue：Far Backward
    };
 
     // "VertexBarrel", "SiBarrel", "TrackerEndcap", "MPGDBarrel", "OuterMPGDBarrel", "ForwardMPGDEndcap", "BackwardMPGDEndcap",\
     // "TOFBarrel",  "TOFEndcap", "B0Tracker",  "ForwardOffMTracker","ForwardRomanPot", \
-    // 
     // "DIRCBarHits", "DRICHHits", "LumiSpecTracker", "RICHEndcapN", "TaggerTracker"
     Int_t m_TrkDetColors[12] = {m_kDetColors[0], m_kDetColors[0], m_kDetColors[0],\
         m_kDetColors[1], m_kDetColors[1],  m_kDetColors[1], m_kDetColors[1],\
         m_kDetColors[2], m_kDetColors[2], \
-        m_kDetColors[0],\
+        m_kDetColors[1],\
         m_kDetColors[7], m_kDetColors[7]
     };
     //    m_kDetColors[6], m_kDetColors[5], m_kDetColors[7], m_kDetColors[5], m_kDetColors[0]
@@ -138,12 +137,12 @@ private:
     //    "EcalBarrelScFi", m_kDetColors[3],
 
    const Int_t m_kMcPColor[8] = {
-      820 - 8, // kSpring：gamma
-      860 + 1, // kAzure：electron
+      860 + 6, // kAzure：gamma
+      800 - 3, // kOrange：electron
       632 - 7, // kRed : proton
       880 + 2, // kPurple : neutron
-      860 + 10, // kAzure: other lepton
-      860 - 7, // kGray: other neutral
+      600 - 7, // kBlue: other lepton
+      860 - 7, // kAzure: other neutral
       632 - 2, // kRed: other charged
       2 // kBlack: background
    };
@@ -157,13 +156,13 @@ private:
       if (apdg == 11)   return m_kMcPColor[1];    // e
       if (apdg == 2212) return m_kMcPColor[2];    // proton
       if (apdg == 2112) return m_kMcPColor[3];    // neutron
-      if (apdg == 13)   return m_kMcPColor[4];    // mu
-      if (apdg == 211)  return m_kMcPColor[5];    // pi
+      if (apdg == 13)   return m_kMcPColor[5];    // mu
       if (ch == 0)  return m_kMcPColor[6];    // other neutral
       if (ch != 0)  return m_kMcPColor[7];    // other charged
       return kBlack;
       // if (apdg == 321)  return m_kMcPColor[3];    // K
    }
+   // if (apdg == 211)  return m_kMcPColor[5];    // pi
 
    bool bWBKG = false;
    Int_t m_SpeEventID = 0;

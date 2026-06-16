@@ -68,6 +68,9 @@ namespace InputDataConfig {
         "ForwardRomanPotRecHits"
     };
 
+
+
+    
     inline constexpr std::array<std::string_view, 11> kCalCluCollections = {
         "B0ECalClusters",
         "EcalBarrelClusters",

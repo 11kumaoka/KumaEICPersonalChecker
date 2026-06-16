@@ -21,7 +21,7 @@ void EventAna::EventLoop() {
     bWBKG = false;
     nEvents = 8;
     // nEvents= 5;
-    m_SpeEventID = 5;
+    m_SpeEventID = 0;
     if(bTargetEV) nEvents = m_vTargetEvents.size();
 
     drawEightEvents2D_ZR();

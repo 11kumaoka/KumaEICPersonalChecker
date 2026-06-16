@@ -4,24 +4,27 @@
 EventAna::EventAna(const std::string& inputFile, const std::string& outputFile) : 
     m_iFileName(inputFile), m_oFileName(outputFile)
 {
+    TH1::AddDirectory(kFALSE);
     m_reader.openFile(m_iFileName);
+    
 }
 
 
 void EventAna::EventLoop() {
     OFileInit();
     auto nEvents = m_reader.getEntries("events");
-    std::cout << "Number of events = " << nEvents << std::endl;
-
+    
     bool bTargetEV = false;
     m_vTargetEvents = {36, 119, 305, 359, 506, 585, 636, 666, 820};
     // 0, 5, 8, 10, 23, 36, 72, 85, 86, 118, 119, 151, 152, 158, 161, 162, 180, 188, 237, 238, 240, 243, 244, 254, 262, 264, 275, 287, 297, 304, 305, 312, 325, 340, 355, 359, 364, 378, 384, 395, 410, 415, 419, 428, 433, 438, 442, 443, 444, 446, 449, 451, 457, 461, 481, 497, 499, 502, 506, 508, 526, 527, 547, 560, 562, 563, 567, 571, 584, 585, 588, 593, 605, 616, 623, 636, 644, 653, 661, 666, 668, 670, 705, 710, 720, 742, 745, 755, 767, 772, 778, 807, 819, 820, 821, 824, 840, 853, 864, 868, 871, 906, 910, 912, 914, 918, 930, 933, 943, 944, 970, 981, 994
 
     // 36, 119, 305, 359, 506, 585, 636, 666, 820,
 
-    nEvents = 1000;
-    // nEvents= 5;
+    // nEvents = 1000;
+    nEvents= 10;
     if(bTargetEV) nEvents = m_vTargetEvents.size();
+
+    std::cout << "Number of events = " << nEvents << std::endl;
 
     for (unsigned iEvent = 0; iEvent < nEvents; ++iEvent) {
         unsigned tempIEvent = iEvent;
@@ -35,7 +38,7 @@ void EventAna::EventLoop() {
         FillHitTimesDist(frame, physCollTime);
 
         // m_trkDetsHits = LoadTrackerHitsFromFrame(frame);
-        // m_calDetsHits = LoadCalHitsFromFrame(frame);
+        // m_CalClusHits = LoadCalHitsFromFrame(frame);
 
         FillEachSubDetRecDepE(frame);
         // FillEachSubDetDepE();
@@ -45,7 +48,7 @@ void EventAna::EventLoop() {
         iEvent = tempIEvent;
     }
 
-    for(size_t iTrkDet = 0; iTrkDet < 4; iTrkDet++){
+    for(size_t iTrkDet = 0; iTrkDet < 9; iTrkDet++){
         for(size_t iPKind = 0; iPKind < 2; iPKind++){
             m_hTrkTimeDist[iTrkDet][iPKind]->Scale(1./nEvents);
             Int_t totCount = m_hTrkNumOfHitsInTS[iTrkDet][iPKind]->Integral();
@@ -131,10 +134,9 @@ void EventAna::FillHitTimesDist(const podio::Frame& frame, Double_t vtxTime){
                     Double_t recHitR = std::sqrt(pos.x*pos.x + pos.y*pos.y + pos.z*pos.z);
                     Double_t calibedTime = calibT(recHit.getTime(), recHitR);
                     
-                    if(repDetId<2) continue;
                     Double_t calibedTimeAlined = calibedTime - vtxTime;
-                    m_hTrkTimeDist[repDetId-2][bPhys]->Fill(calibedTimeAlined);
-                    if((calibedTimeAlined > -5.)&&(calibedTimeAlined < 10.)) countOfHitsInTS[bPhys]++;
+                    m_hTrkTimeDist[repDetId][bPhys]->Fill(calibedTimeAlined);
+                    if((calibedTimeAlined + m_TrkTimeRes[repDetId] > -5.)&&(calibedTimeAlined - m_TrkTimeRes[repDetId] < 10.)) countOfHitsInTS[bPhys]++;
                 }
             }
 
@@ -159,53 +161,49 @@ void EventAna::FillHitTimesDist(const podio::Frame& frame, Double_t vtxTime){
         
     }
 
-
-    // == s == CalDet loop ==
-    for(size_t iCalDet = 0; iCalDet < InputDataConfig::kCalCluCollections.size(); iCalDet++){
-
-        const auto& clus = frame.get<edm4eic::ClusterCollection>(std::string(InputDataConfig::kCalCluCollections.at(iCalDet)));
+    // // == s == CalRec loop ==
+    for(size_t iCalRec = 0; iCalRec < InputDataConfig::kCalRecCollections.size(); iCalRec++){
+        const auto& recs = frame.get<edm4eic::CalorimeterHitCollection>(std::string(InputDataConfig::kCalRecCollections.at(iCalRec)));
+        const auto& rawHits = frame.get<edm4hep::RawCalorimeterHitCollection>(std::string(InputDataConfig::kCalRawCollections.at(iCalRec)));
         const auto& associations \
-            = frame.get<edm4eic::MCRecoClusterParticleAssociationCollection>(std::string(InputDataConfig::kCalClusterAssociations.at(iCalDet)));
-
+            = frame.get<edm4eic::MCRecoCalorimeterHitAssociationCollection>(std::string(InputDataConfig::kCalRawAssociations.at(iCalRec)));
+        
         Int_t countOfHitsInTS[2] = {0, 0};
-        for(size_t iClu = 0; iClu < clus.size(); iClu++){
-            auto clu = clus.at(iClu);
+        for(size_t iCalRecHit = 0; iCalRecHit < recs.size(); iCalRecHit++){
+            auto calRecHit = recs.at(iCalRecHit);
+            auto rawHitFromRec = calRecHit.getRawHit();
+            auto recRawID = rawHitFromRec.getObjectID();
             
             for (const auto& assoc : associations) {
-                if (assoc.getRec() != clu)continue;
-
-                const auto& mcP = assoc.getSim();
-                // Int_t relMcPIdGenId = mcP.at(relMcPId.index).getGeneratorStatus();
-                Int_t relMcPIdGenId = mcP.getGeneratorStatus();
-
-                // auto simHit = assoc.getSimHit();
-                // auto relMcP = simHit.getParticle();
-                // auto relMcPId = relMcP.getObjectID();
-                // Int_t relMcPIdGenId = mcP.at(relMcPId.index).getGeneratorStatus();
-                // Int_t relMcPIdGenId = relMcP.getGeneratorStatus();
-
-                // Int_t pKindId = relMcPIdGenId/1000 -1;
-                // if(pKindId < 0) pKindId = 0;
-                Int_t bPhys = 1;
-                if(relMcPIdGenId < 1999) bPhys = 0;
+                auto rawHitFromAssoc = assoc.getRawHit();
+                auto assocRawID = rawHitFromAssoc.getObjectID();
+                if(recRawID.index == assocRawID.index && recRawID.collectionID == assocRawID.collectionID) {
+                    auto simHit = assoc.getSimHit();
+                    for (const auto& contrib : simHit.getContributions()) {
+                        const auto& relMcP = contrib.getParticle();
+                        auto relMcPId = relMcP.getObjectID();
                     
-                const auto pos = clu.getPosition();
-                Double_t cluR = std::sqrt(pos.x*pos.x + pos.y*pos.y + pos.z*pos.z);
-                Double_t calibedTime = calibT(clu.getTime(), cluR);
-                
-                Double_t calibedTimeAlined = calibedTime - vtxTime;
-                m_hCalDetTimeDist[iCalDet][bPhys]->Fill(calibedTimeAlined);
-                if((calibedTimeAlined > -5.)&&(calibedTimeAlined < 10.)) countOfHitsInTS[bPhys]++;
-                
+                        Int_t relMcPIdGenId = mcP.at(relMcPId.index).getGeneratorStatus();
+                        Int_t bPhys = 1;
+                        if(relMcPIdGenId < 1999) bPhys = 0;
+                            
+                        const auto pos = calRecHit.getPosition();
+                        Double_t recHitR = std::sqrt(pos.x*pos.x + pos.y*pos.y + pos.z*pos.z);
+                        Double_t calibedTime = calibT(calRecHit.getTime(), recHitR);
+                        
+                        Double_t calibedTimeAlined = calibedTime - vtxTime;
+                        m_hCalRecTimeDist[iCalRec][bPhys]->Fill(calibedTimeAlined);
+                        if((calibedTimeAlined + m_CalTimeRes[iCalRec] > -5.)&&(calibedTimeAlined - m_CalTimeRes[iCalRec] < 10.)) countOfHitsInTS[bPhys]++;
+                    }
+                }
             }
-
         }
         // tempDetID++;
 
         // if(repDetId<2) continue;
         // // std::cout << "repDetId-2: bPhys" << repDetId-2 << std::endl;
-        // m_hTrkNumOfHitsInTS[iCalDet][0]->Fill(countOfHitsInTS[0]);
-        // m_hTrkNumOfHitsInTS[iCalDet][1]->Fill(countOfHitsInTS[1]);
+        // m_hCalRecNumOfHitsInTS[iCalRec][0]->Fill(countOfHitsInTS[0]);
+        // m_hCalRecNumOfHitsInTS[iCalRec][1]->Fill(countOfHitsInTS[1]);
 
         // if((repDetId == 2)||(repDetId == 4)){
         //     trigHitCounts[0][0] += countOfHitsInTS[0]+countOfHitsInTS[1];
@@ -218,7 +216,60 @@ void EventAna::FillHitTimesDist(const podio::Frame& frame, Double_t vtxTime){
         //     trigHitCounts[2][1] += countOfHitsInTS[1];
         // }
         
-    }// == e == CalDet loop ends ==
+    }// == e == CalRec loop ends ==
+
+
+    // == s == CalClu loop ==
+    for(size_t iCalClu = 0; iCalClu < InputDataConfig::kCalCluCollections.size(); iCalClu++){
+
+        const auto& clus = frame.get<edm4eic::ClusterCollection>(std::string(InputDataConfig::kCalCluCollections.at(iCalClu)));
+        const auto& associations \
+            = frame.get<edm4eic::MCRecoClusterParticleAssociationCollection>(std::string(InputDataConfig::kCalCluAssociations.at(iCalClu)));
+
+        Int_t countOfHitsInTS[2] = {0, 0};
+        for(size_t iClu = 0; iClu < clus.size(); iClu++){
+            auto clu = clus.at(iClu);
+            
+            for (const auto& assoc : associations) {
+                if (assoc.getRec() != clu)continue;
+
+                const auto& mcP = assoc.getSim();
+                // Int_t relMcPIdGenId = mcP.at(relMcPId.index).getGeneratorStatus();
+                Int_t relMcPIdGenId = mcP.getGeneratorStatus();
+
+                Int_t bPhys = 1;
+                if(relMcPIdGenId < 1999) bPhys = 0;
+                    
+                const auto pos = clu.getPosition();
+                Double_t cluR = std::sqrt(pos.x*pos.x + pos.y*pos.y + pos.z*pos.z);
+                Double_t calibedTime = calibT(clu.getTime(), cluR);
+                
+                Double_t calibedTimeAlined = calibedTime - vtxTime;
+                m_hCalCluTimeDist[iCalClu][bPhys]->Fill(calibedTimeAlined);
+                if((calibedTimeAlined + m_CalTimeRes[iCalClu] > -5.)&&(calibedTimeAlined - m_CalTimeRes[iCalClu] < 10.)) countOfHitsInTS[bPhys]++;
+                
+            }
+
+        }
+        // tempDetID++;
+
+        // if(repDetId<2) continue;
+        // // std::cout << "repDetId-2: bPhys" << repDetId-2 << std::endl;
+        // m_hCalCluNumOfHitsInTS[iCalClu][0]->Fill(countOfHitsInTS[0]);
+        // m_hCalCluNumOfHitsInTS[iCalClu][1]->Fill(countOfHitsInTS[1]);
+
+        // if((repDetId == 2)||(repDetId == 4)){
+        //     trigHitCounts[0][0] += countOfHitsInTS[0]+countOfHitsInTS[1];
+        //     trigHitCounts[0][1] += countOfHitsInTS[1];
+        // }else if((repDetId == 3)||(repDetId == 5)){
+        //     trigHitCounts[1][0] += countOfHitsInTS[0]+countOfHitsInTS[1];
+        //     trigHitCounts[1][1] += countOfHitsInTS[1];
+        // }else if(repDetId == 6){
+        //     trigHitCounts[2][0] += countOfHitsInTS[0]+countOfHitsInTS[1];
+        //     trigHitCounts[2][1] += countOfHitsInTS[1];
+        // }
+        
+    }// == e == CalClu loop ends ==
 
 
     for(size_t iTrig = 0; iTrig < 3; iTrig++){
@@ -308,11 +359,11 @@ void EventAna::FillEachSubDetRecDepE(const podio::Frame& frame){
     }
 
 
-    for(size_t iCalDet = 0; iCalDet < InputDataConfig::kCalCluCollections.size(); iCalDet++){
+    for(size_t iCalClu = 0; iCalClu < InputDataConfig::kCalCluCollections.size(); iCalClu++){
 
-        const auto& clus = frame.get<edm4eic::ClusterCollection>(std::string(InputDataConfig::kCalCluCollections.at(iCalDet)));
+        const auto& clus = frame.get<edm4eic::ClusterCollection>(std::string(InputDataConfig::kCalCluCollections.at(iCalClu)));
         const auto& associations \
-            = frame.get<edm4eic::MCRecoClusterParticleAssociationCollection>(std::string(InputDataConfig::kCalClusterAssociations.at(iCalDet)));
+            = frame.get<edm4eic::MCRecoClusterParticleAssociationCollection>(std::string(InputDataConfig::kCalCluAssociations.at(iCalClu)));
 
         Int_t countOfHitsInTS[2] = {0, 0};
         for(size_t iClu = 0; iClu < clus.size(); iClu++){
@@ -328,13 +379,13 @@ void EventAna::FillEachSubDetRecDepE(const podio::Frame& frame){
 
                 Int_t pKindId = relMcPIdGenId/1000 -1;
                 if(pKindId < 0) pKindId = 0;
-                m_hCalRecEDep[iCalDet][pKindId]->Fill(depE);
+                m_hCalCluEDep[iCalClu][pKindId]->Fill(depE);
                 
             }
 
         }
 
-    }// == e == CalDet loop ends ==
+    }// == e == CalClu loop ends ==
 
 
 }
@@ -344,6 +395,45 @@ void EventAna::FillEachSubDetRecDepE(const podio::Frame& frame){
 void EventAna::OFileInit() {
     oFile = new TFile(m_oFileName.c_str(), "recreate");
     std::cout << "OFileInit" << std::endl;
+
+    m_dirTrkRecDepE = oFile->mkdir("TrkRecDepEDirs");
+    for (const auto& trkName : m_trkShortDetName) {
+        m_mapTrkRecDepEDirs[trkName.Data()] = m_dirTrkRecDepE->mkdir(trkName.Data());
+    }
+    m_dirCalRecDepE = oFile->mkdir("CalRecDepEDirs");
+    for (const auto& calName : m_calShortDetName) {
+        m_mapCalRecDepEDirs[calName.Data()] = m_dirCalRecDepE->mkdir(calName.Data());
+    }
+    m_dirCalCluDepE = oFile->mkdir("CalCluDepEDirs");
+    for (const auto& calName : m_calShortDetName) {
+        m_mapCalCluDepEDirs[calName.Data()] = m_dirCalCluDepE->mkdir(calName.Data());
+    }
+
+    m_dirTrkRecTimeDist = oFile->mkdir("TrkRecTimeDistDirs");
+    for (const auto& trkName : m_trkShortDetName) {
+        m_mapTrkRecTimeDistDirs[trkName.Data()] = m_dirTrkRecTimeDist->mkdir(trkName.Data());
+    }
+    m_dirCalRecTimeDist = oFile->mkdir("CalRecTimeDistDirs");
+    for (const auto& calName : m_calShortDetName) {
+        m_mapCalRecTimeDistDirs[calName.Data()] = m_dirCalRecTimeDist->mkdir(calName.Data());
+    }
+    m_dirCalCluTimeDist = oFile->mkdir("CalCluTimeDistDirs");
+    for (const auto& calName : m_calShortDetName) {
+        m_mapCalCluTimeDistDirs[calName.Data()] = m_dirCalCluTimeDist->mkdir(calName.Data());
+    }
+
+    m_dirTrkRecNumOfHitsInTS = oFile->mkdir("TrkRecNumOfHitsInTSDirs");
+    for (const auto& trkName : m_trkShortDetName) {
+        m_mapTrkRecNumOfHitsInTSDirs[trkName.Data()] = m_dirTrkRecNumOfHitsInTS->mkdir(trkName.Data());
+    }
+    m_dirCalRecNumOfHitsInTS = oFile->mkdir("CalRecNumOfHitsInTSDirs");
+    for (const auto& calName : m_calShortDetName) {
+        m_mapCalRecNumOfHitsInTSDirs[calName.Data()] = m_dirCalRecNumOfHitsInTS->mkdir(calName.Data());
+    }
+    m_dirCalCluNumOfHitsInTS = oFile->mkdir("CalCluNumOfHitsInTSDirs");
+    for (const auto& calName : m_calShortDetName) {
+        m_mapCalCluNumOfHitsInTSDirs[calName.Data()] = m_dirCalCluNumOfHitsInTS->mkdir(calName.Data());
+    }
 
     TString histName = "";
     TString histTitle = "";
@@ -368,35 +458,59 @@ void EventAna::OFileInit() {
         for(size_t iPKind = 0; iPKind < 2; iPKind++){
             TString tempPhysName = "Phys";
             if(iPKind == 1) tempPhysName = "BKG";
-            histName = TString::Format("m_hTrkTimeDist%s_%s",m_trkShortDetName[iTrkDet+2].Data(),tempPhysName.Data());
+            histName = TString::Format("m_hTrkTimeDist%s_%s",m_trkShortDetName[iTrkDet].Data(),tempPhysName.Data());
             histTitle = TString::Format("%s;time_{calib} [ns];count",histName.Data());
             m_hTrkTimeDist[iTrkDet][iPKind] = new TH1D(histName.Data(), histTitle.Data(), 220, -20, 200);
 
-            histName = TString::Format("m_hTrkNumOfHitsInTS%s_%s",m_trkShortDetName[iTrkDet+2].Data(),tempPhysName.Data());
+            histName = TString::Format("m_hTrkNumOfHitsInTS%s_%s",m_trkShortDetName[iTrkDet].Data(),tempPhysName.Data());
             histTitle = TString::Format("%s;number of hits;count",histName.Data());
             m_hTrkNumOfHitsInTS[iTrkDet][iPKind] = new TH1D(histName.Data(), histTitle.Data(), 20, 0, 20);
         }
     }
 
-    for(size_t iCalDet = 0; iCalDet < 6; iCalDet++){
+
+    for(size_t iCalRec = 0; iCalRec < 7; iCalRec++){
         for(size_t iPKind = 0; iPKind < 6; iPKind++){
-            histName = TString::Format("m_hCalDetRecDepE_%s_%s",m_calShortDetName[iCalDet].Data(),m_physKindShortName[iPKind].Data());
+            histName = TString::Format("m_hCalRecRecDepE_%s_%s",m_calShortDetName[iCalRec].Data(),m_physKindShortName[iPKind].Data());
             histTitle = TString::Format("%s;eDep [MeV];count",histName.Data());
-            m_hCalRecEDep[iCalDet][iPKind] = new TH1D(histName.Data(), histTitle.Data(), 100, 0, 0.50);
+            m_hCalRecEDep[iCalRec][iPKind] = new TH1D(histName.Data(), histTitle.Data(), 100, 0, 100.0);
         }
     }
 
-    for(size_t iCalDet = 0; iCalDet < 6; iCalDet++){
+    for(size_t iCalRec = 0; iCalRec < 7; iCalRec++){
         for(size_t iPKind = 0; iPKind < 2; iPKind++){
             TString tempPhysName = "Phys";
             if(iPKind == 1) tempPhysName = "BKG";
-            histName = TString::Format("m_hCalDetTimeDist%s_%s",m_calShortDetName[iCalDet].Data(),tempPhysName.Data());
+            histName = TString::Format("m_hCalRecTimeDist%s_%s",m_calShortDetName[iCalRec].Data(),tempPhysName.Data());
             histTitle = TString::Format("%s;time_{calib} [ns];count",histName.Data());
-            m_hCalDetTimeDist[iCalDet][iPKind] = new TH1D(histName.Data(), histTitle.Data(), 220, -20, 200);
+            m_hCalRecTimeDist[iCalRec][iPKind] = new TH1D(histName.Data(), histTitle.Data(), 220, -20, 200);
 
-            histName = TString::Format("m_hCalDetNumOfHitsInTS%s_%s",m_calShortDetName[iCalDet].Data(),tempPhysName.Data());
+            histName = TString::Format("m_hCalRecNumOfHitsInTS%s_%s",m_calShortDetName[iCalRec].Data(),tempPhysName.Data());
             histTitle = TString::Format("%s;number of hits;count",histName.Data());
-            m_hCalDetNumOfHitsInTS[iCalDet][iPKind] = new TH1D(histName.Data(), histTitle.Data(), 20, 0, 20);
+            m_hCalRecNumOfHitsInTS[iCalRec][iPKind] = new TH1D(histName.Data(), histTitle.Data(), 20, 0, 20);
+        }
+    }
+
+
+    for(size_t iCalClu = 0; iCalClu < 6; iCalClu++){
+        for(size_t iPKind = 0; iPKind < 6; iPKind++){
+            histName = TString::Format("m_hCalCluRecDepE_%s_%s",m_calShortDetName[iCalClu].Data(),m_physKindShortName[iPKind].Data());
+            histTitle = TString::Format("%s;eDep [MeV];count",histName.Data());
+            m_hCalCluEDep[iCalClu][iPKind] = new TH1D(histName.Data(), histTitle.Data(), 100, 0, 100.0);
+        }
+    }
+
+    for(size_t iCalClu = 0; iCalClu < 6; iCalClu++){
+        for(size_t iPKind = 0; iPKind < 2; iPKind++){
+            TString tempPhysName = "Phys";
+            if(iPKind == 1) tempPhysName = "BKG";
+            histName = TString::Format("m_hCalCluTimeDist%s_%s",m_calShortDetName[iCalClu].Data(),tempPhysName.Data());
+            histTitle = TString::Format("%s;time_{calib} [ns];count",histName.Data());
+            m_hCalCluTimeDist[iCalClu][iPKind] = new TH1D(histName.Data(), histTitle.Data(), 220, -20, 200);
+
+            histName = TString::Format("m_hCalCluNumOfHitsInTS%s_%s",m_calShortDetName[iCalClu].Data(),tempPhysName.Data());
+            histTitle = TString::Format("%s;number of hits;count",histName.Data());
+            m_hCalCluNumOfHitsInTS[iCalClu][iPKind] = new TH1D(histName.Data(), histTitle.Data(), 20, 0, 20);
         }
     }
 
@@ -421,14 +535,14 @@ void EventAna::OFileInit() {
 }
 
 void EventAna::EditHists() {
-    for(size_t iTrkDet = 0; iTrkDet < 8; iTrkDet++){
+    for(size_t iTrkDet = 0; iTrkDet < 9; iTrkDet++){
         for(size_t iPKind = 0; iPKind < 6; iPKind++){
             m_hTrkRecEDep[iTrkDet][iPKind]->SetLineColor(m_BKGColors[iPKind]);
             m_hTrkRecEDep[iTrkDet][iPKind]->SetLineWidth(5);
         }
     }
 
-    for(size_t iTrkDet = 0; iTrkDet < 8; iTrkDet++){
+    for(size_t iTrkDet = 0; iTrkDet < 9; iTrkDet++){
         for(size_t iPKind = 0; iPKind < 2; iPKind++){
             Int_t histColor = 820+4;
             if(iPKind == 1) histColor = 880 -1;
@@ -440,22 +554,43 @@ void EventAna::EditHists() {
         }
     }
 
-    for(size_t iCalDet = 0; iCalDet < 6; iCalDet++){
+    for(size_t iCalRec = 0; iCalRec < 6; iCalRec++){
         for(size_t iPKind = 0; iPKind < 6; iPKind++){
-            m_hCalRecEDep[iCalDet][iPKind]->SetLineColor(m_BKGColors[iPKind]);
-            m_hCalRecEDep[iCalDet][iPKind]->SetLineWidth(5);
+            m_hCalCluEDep[iCalRec][iPKind]->SetLineColor(m_BKGColors[iPKind]);
+            m_hCalCluEDep[iCalRec][iPKind]->SetLineWidth(5);
         }
     }
 
-    for(size_t iCalDet = 0; iCalDet < 6; iCalDet++){
+    for(size_t iCalRec = 0; iCalRec < 6; iCalRec++){
         for(size_t iPKind = 0; iPKind < 2; iPKind++){
             Int_t histColor = 820+4;
             if(iPKind == 1) histColor = 880 -1;
-            m_hCalDetTimeDist[iCalDet][iPKind]->SetLineColor(histColor);
-            m_hCalDetTimeDist[iCalDet][iPKind]->SetLineWidth(5);
+            m_hCalCluTimeDist[iCalRec][iPKind]->SetLineColor(histColor);
+            m_hCalCluTimeDist[iCalRec][iPKind]->SetLineWidth(5);
 
-            m_hCalDetNumOfHitsInTS[iCalDet][iPKind]->SetLineColor(histColor);
-            m_hCalDetNumOfHitsInTS[iCalDet][iPKind]->SetLineWidth(5);
+            m_hCalCluNumOfHitsInTS[iCalRec][iPKind]->SetLineColor(histColor);
+            m_hCalCluNumOfHitsInTS[iCalRec][iPKind]->SetLineWidth(5);
+        }
+    }
+
+
+
+    for(size_t iCalClu = 0; iCalClu < 6; iCalClu++){
+        for(size_t iPKind = 0; iPKind < 6; iPKind++){
+            m_hCalCluEDep[iCalClu][iPKind]->SetLineColor(m_BKGColors[iPKind]);
+            m_hCalCluEDep[iCalClu][iPKind]->SetLineWidth(5);
+        }
+    }
+
+    for(size_t iCalClu = 0; iCalClu < 6; iCalClu++){
+        for(size_t iPKind = 0; iPKind < 2; iPKind++){
+            Int_t histColor = 820+4;
+            if(iPKind == 1) histColor = 880 -1;
+            m_hCalCluTimeDist[iCalClu][iPKind]->SetLineColor(histColor);
+            m_hCalCluTimeDist[iCalClu][iPKind]->SetLineWidth(5);
+
+            m_hCalCluNumOfHitsInTS[iCalClu][iPKind]->SetLineColor(histColor);
+            m_hCalCluNumOfHitsInTS[iCalClu][iPKind]->SetLineWidth(5);
         }
     }
 
@@ -485,29 +620,76 @@ void EventAna::OFileWrite() {
     m_hETOFRecDepE->Write();
     m_hB0RecDepE->Write();
 
-    for(size_t iTrkDet = 0; iTrkDet < 8; iTrkDet++){
+    for(size_t iTrkDet = 0; iTrkDet < 9; iTrkDet++){
+        const auto& detName = m_trkShortDetName[iTrkDet];
+        TDirectory* dirTrkRecDepE = m_dirTrkRecDepE->GetDirectory(detName.Data());
+        if (!dirTrkRecDepE) dirTrkRecDepE = m_dirTrkRecDepE->mkdir(detName.Data());
+
         for(size_t iPKind = 0; iPKind < 6; iPKind++){
-            m_hTrkRecEDep[iTrkDet][iPKind]->Write();
+            const auto& pKindName = m_physKindShortName[iPKind];
+            dirTrkRecDepE->WriteObject(m_hTrkRecEDep[iTrkDet][iPKind], pKindName.Data());
         }
-    }
 
-    for(size_t iTrkDet = 0; iTrkDet < 8; iTrkDet++){
+        TDirectory* dirTrkTimeDist = m_dirTrkRecTimeDist->GetDirectory(detName.Data());
+        if (!dirTrkTimeDist) dirTrkTimeDist = m_dirTrkRecTimeDist->mkdir(detName.Data());
         for(size_t iPKind = 0; iPKind < 2; iPKind++){
-            m_hTrkTimeDist[iTrkDet][iPKind]->Write();
-            m_hTrkNumOfHitsInTS[iTrkDet][iPKind]->Write();
+            const auto& pKindName = m_biPhysName[iPKind];
+            dirTrkTimeDist->WriteObject(m_hTrkTimeDist[iTrkDet][iPKind], pKindName.Data());
+        }
+
+        TDirectory* dirTrkNumOfHitsInTS = m_dirTrkRecNumOfHitsInTS->GetDirectory(detName.Data());
+        if (!dirTrkNumOfHitsInTS) dirTrkNumOfHitsInTS = m_dirTrkRecNumOfHitsInTS->mkdir(detName.Data());
+        for(size_t iPKind = 0; iPKind < 2; iPKind++){
+            const auto& pKindName = m_biPhysName[iPKind];
+            dirTrkNumOfHitsInTS->WriteObject(m_hTrkNumOfHitsInTS[iTrkDet][iPKind], pKindName.Data());
         }
     }
-
-    for(size_t iCalDet = 0; iCalDet < 6; iCalDet++){
+    
+    
+    for(size_t iCalRec = 0; iCalRec < 7; iCalRec++){
+        const auto& detName = m_calRecShortDetName[iCalRec];
+        TDirectory* dirCalRecDepE = m_dirCalRecDepE->GetDirectory(detName.Data());
+        if (!dirCalRecDepE) dirCalRecDepE = m_dirCalRecDepE->mkdir(detName.Data());
         for(size_t iPKind = 0; iPKind < 6; iPKind++){
-            m_hCalRecEDep[iCalDet][iPKind]->Write();
+            const auto& pKindName = m_physKindShortName[iPKind];
+            dirCalRecDepE->WriteObject(m_hCalRecEDep[iCalRec][iPKind], pKindName.Data());
+        }
+        TDirectory* dirCalRecTimeDist = m_dirCalRecTimeDist->GetDirectory(detName.Data());
+        if (!dirCalRecTimeDist) dirCalRecTimeDist = m_dirCalRecTimeDist->mkdir(detName.Data());
+        for(size_t iPKind = 0; iPKind < 2; iPKind++){
+            const auto& pKindName = m_biPhysName[iPKind];
+            dirCalRecTimeDist->WriteObject(m_hCalRecTimeDist[iCalRec][iPKind], pKindName.Data());
+        }
+        TDirectory* dirCalRecNumOfHitsInTS = m_dirCalRecNumOfHitsInTS->GetDirectory(detName.Data());
+        if (!dirCalRecNumOfHitsInTS) dirCalRecNumOfHitsInTS = m_dirCalRecNumOfHitsInTS->mkdir(detName.Data());
+        for(size_t iPKind = 0; iPKind < 2; iPKind++){
+            const auto& pKindName = m_biPhysName[iPKind];
+            dirCalRecNumOfHitsInTS->WriteObject(m_hCalRecNumOfHitsInTS[iCalRec][iPKind], pKindName.Data());
         }
     }
 
-    for(size_t iCalDet = 0; iCalDet < 6; iCalDet++){
+    for(size_t iCalClu = 0; iCalClu < 6; iCalClu++){
+        const auto& detName = m_calShortDetName[iCalClu];
+        TDirectory* dirCalCluDepE = m_dirCalCluDepE->GetDirectory(detName.Data());
+        if (!dirCalCluDepE) dirCalCluDepE = m_dirCalCluDepE->mkdir(detName.Data());
+
+        for(size_t iPKind = 0; iPKind < 6; iPKind++){
+            const auto& pKindName = m_physKindShortName[iPKind];
+            dirCalCluDepE->WriteObject(m_hCalCluEDep[iCalClu][iPKind], pKindName.Data());
+        }
+
+        TDirectory* dirCalCluTimeDist = m_dirCalCluTimeDist->GetDirectory(detName.Data());
+        if (!dirCalCluTimeDist) dirCalCluTimeDist = m_dirCalCluTimeDist->mkdir(detName.Data());
         for(size_t iPKind = 0; iPKind < 2; iPKind++){
-            m_hCalDetTimeDist[iCalDet][iPKind]->Write();
-            m_hCalDetNumOfHitsInTS[iCalDet][iPKind]->Write();
+            const auto& pKindName = m_biPhysName[iPKind];
+            dirCalCluTimeDist->WriteObject(m_hCalCluTimeDist[iCalClu][iPKind], pKindName.Data());
+        }
+
+        TDirectory* dirCalCluNumOfHitsInTS = m_dirCalCluNumOfHitsInTS->GetDirectory(detName.Data());
+        if (!dirCalCluNumOfHitsInTS) dirCalCluNumOfHitsInTS = m_dirCalCluNumOfHitsInTS->mkdir(detName.Data());
+        for(size_t iPKind = 0; iPKind < 2; iPKind++){
+            const auto& pKindName = m_biPhysName[iPKind];
+            dirCalCluNumOfHitsInTS->WriteObject(m_hCalCluNumOfHitsInTS[iCalClu][iPKind], pKindName.Data());
         }
     }
 
