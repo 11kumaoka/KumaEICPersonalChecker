@@ -78,7 +78,8 @@ private:
 
     Double_t m_timeWindow = 2000.0;
     Double_t m_timeSliceWidth = 20.0;
-    Double_t m_trkDetTimeReso[3] = {2000., 20., 0.03}; //ns
+    Double_t m_TrkTimeRes[9] = {2000., 2000., 10., 10., 0.05, 0.05, 0.05, 10., 10.}; // ns [s] // BSi, ESi, BMPGD, EMPGD, BTOF, ETOF, B0, FOffMT, FRoman
+    Double_t m_CalTimeRes[7] = {50., 50., 50., 50., 50., 50., 50.}; // ns [s] // EcalB0, EcalBImag, EcalBScFi, EcalEN, EcalEP, EcalFFZDCC, EcalLumi
 
     Double_t physTimeWMin = -5.;// ns
     Double_t physTimeWMax = 10.;// ns

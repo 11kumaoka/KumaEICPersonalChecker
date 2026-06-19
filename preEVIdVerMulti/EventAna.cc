@@ -11,7 +11,6 @@ EventAna::EventAna(const std::string& inputFile, const std::string& outputFile) 
 void EventAna::EventLoop() {
     OFileInit();
     auto nEvents = m_reader.getEntries("events");
-    std::cout << "Number of events = " << nEvents << std::endl;
 
     bool bTargetEV = false;
     m_vTargetEvents = {8, 10};
@@ -19,7 +18,7 @@ void EventAna::EventLoop() {
     nEvents = 1000;
     // nEvents= 5;
     if(bTargetEV) nEvents = m_vTargetEvents.size();
-
+    std::cout << "Number of events = " << nEvents << std::endl;
     for (unsigned iEvent = 0; iEvent < nEvents; ++iEvent) {
         unsigned tempIEvent = iEvent;
         if(bTargetEV) iEvent =  m_vTargetEvents.at(iEvent);
@@ -29,7 +28,6 @@ void EventAna::EventLoop() {
         auto frame = podio::Frame(m_reader.readEntry("events", iEvent));
 
         Double_t physCollTime = FindPhysCollTime(frame);
-
         m_trkDetsHits = LoadTrackerHitsFromFrame(frame);
 
         Int_t nTS = 0;
@@ -107,8 +105,13 @@ Double_t EventAna::FindPhysCollTime(const podio::Frame& frame){
 
     Double_t vtxT = -99999.;
     for(size_t iMcP = 0; iMcP < mcP.size(); iMcP++){
-        if(mcP.at(iMcP).getGeneratorStatus() != 61) continue;
-        vtxT = mcP.at(iMcP).getTime();
+        // if(mcP.at(iMcP).getGeneratorStatus() != 61) continue;
+        if(mcP.at(iMcP).getGeneratorStatus() == 1){
+        // if(mcP.at(iMcP).getParents_begin() == 0){
+            vtxT = mcP.at(iMcP).getTime();
+            break;
+        }
+        
     }
     return vtxT;
 }
