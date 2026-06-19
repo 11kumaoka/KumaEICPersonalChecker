@@ -49,10 +49,32 @@ void EventAna::EventLoop() {
     }
 
     for(size_t iTrkDet = 0; iTrkDet < 9; iTrkDet++){
+        for(size_t iPKind = 0; iPKind < 6; iPKind++){
+            m_hTrkRecEDep[iTrkDet][iPKind]->Scale(1./nEvents);
+        }
         for(size_t iPKind = 0; iPKind < 2; iPKind++){
             m_hTrkTimeDist[iTrkDet][iPKind]->Scale(1./nEvents);
-            Int_t totCount = m_hTrkNumOfHitsInTS[iTrkDet][iPKind]->Integral();
-            m_hTrkNumOfHitsInTS[iTrkDet][iPKind]->Scale(1./totCount);
+            // Int_t totCount = m_hTrkNumOfHitsInTS[iTrkDet][iPKind]->Integral();
+            // m_hTrkNumOfHitsInTS[iTrkDet][iPKind]->Scale(1./totCount);
+            m_hTrkNumOfHitsInTS[iTrkDet][iPKind]->Scale(1./nEvents);
+        }
+    }
+    for(size_t iCalRec = 0; iCalRec < 9; iCalRec++){
+        for(size_t iPKind = 0; iPKind < 6; iPKind++){
+            m_hCalRecEDep[iCalRec][iPKind]->Scale(1./nEvents);
+        }
+        for(size_t iPKind = 0; iPKind < 2; iPKind++){
+            m_hCalRecTimeDist[iCalRec][iPKind]->Scale(1./nEvents);
+            m_hCalRecNumOfHitsInTS[iCalRec][iPKind]->Scale(1./nEvents);
+        }
+    }
+    for(size_t iCalClu = 0; iCalClu < 9; iCalClu++){
+        for(size_t iPKind = 0; iPKind < 6; iPKind++){
+            m_hCalCluEDep[iCalClu][iPKind]->Scale(1./nEvents);
+        }
+        for(size_t iPKind = 0; iPKind < 2; iPKind++){
+            m_hCalCluTimeDist[iCalClu][iPKind]->Scale(1./nEvents);
+            m_hCalCluNumOfHitsInTS[iCalClu][iPKind]->Scale(1./nEvents);
         }
     }
 
