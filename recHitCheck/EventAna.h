@@ -149,7 +149,7 @@ private:
     TH1D* m_hCalCluTimeDist[6][2]; // Det:BMPGD, EMPGD, BTOF, ETOF, B0, FOffMT, FRoman / Hit: Phys, Bkg
     TH1D* m_hCalCluNumOfHitsInTS[6][2]; //  Det:BMPGD, EMPGD, BTOF, ETOF, B0, FOffMT, FRoman / Hit: Phys, Bkg
 
-    TH1D* m_hTrigDetNumOfHitsInTS[3][2]; //  Det:BMPGD+TOF, EMPGD+TOF, B0 / Hit: Phys+BKG, Bkg
+    TH1D* m_hTrigDetNumOfHitsInTS[5][2]; //  Det:BMPGD+TOF, EMPGD+TOF, B0 / Hit: Phys+BKG, Bkg
 
     Int_t m_numOfPhysTrig = 0;
     Int_t m_numOfFakeTrig = 0;
