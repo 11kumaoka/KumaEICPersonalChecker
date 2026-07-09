@@ -1,29 +1,30 @@
 #include "EventAna.h"
 #include <iostream>
 #include <algorithm>
-#include <cstdint>
 #include <cmath>
-#include <unordered_map>
 
 #include <TVector3.h>
 
 namespace {
-    using RawHitKey = std::uint64_t;
     constexpr Int_t kEtaPhiBins = 10;
+    constexpr Int_t kInvalidEtaPhiBin = -1;
     constexpr Double_t kPi = 3.14159;
     using EtaPhiGrid = std::array<std::array<Int_t, kEtaPhiBins>, kEtaPhiBins>;
+    using EtaPhiEnergyGrid = std::array<std::array<Double_t, kEtaPhiBins>, kEtaPhiBins>;
 
     enum TrkCollectionIndex : size_t {
-        kTrkSiBarrelVertex = 0,
-        kTrkSiBarrel = 1,
-        kTrkSiEndcap = 2,
+        kTrkB0 = 0,
+        kTrkTOFBarrel = 1,
+        kTrkTOFEndcap = 2,
         kTrkMPGDBarrel = 3,
         kTrkOuterMPGDBarrel = 4,
         kTrkBackwardMPGD = 5,
         kTrkForwardMPGD = 6,
-        kTrkTOFBarrel = 7,
-        kTrkTOFEndcap = 8,
-        kTrkB0 = 9
+        kTrkSiBarrelVertex = 7,
+        kTrkSiBarrel = 8,
+        kTrkSiEndcap = 9,
+        kTrkForwardOffM = 10,
+        kTrkForwardRomanPot = 11
     };
 
     enum kCalRecCollections : size_t {
@@ -38,33 +39,7 @@ namespace {
 
     struct HitScanState {
         size_t nextHit = 0;
-        bool done = false;
     };
-
-    template <typename ObjectID>
-    RawHitKey makeRawHitKey(const ObjectID& id) {
-        return (static_cast<RawHitKey>(static_cast<std::uint32_t>(id.collectionID)) << 32)
-             | static_cast<std::uint32_t>(id.index);
-    }
-
-    Int_t trackerRepDetId(size_t iDet) {
-        if(iDet > 9) return 7; // FarForwardMT
-        if(iDet > 8) return 6; // B0
-        if(iDet > 7) return 5; // ETOF
-        if(iDet > 6) return 4; // BTOF
-        if(iDet > 4) return 3; // EMPGD
-        if(iDet > 2) return 2; // BMPGD
-        if(iDet > 1) return 1; // ESi
-        return 0;              // BSi
-    }
-
-    Int_t physKindId(Int_t generatorStatus) {
-        return std::clamp(generatorStatus / 1000 - 1, 0, 5);
-    }
-
-    Int_t biPhysId(Int_t generatorStatus) {
-        return generatorStatus < 1999 ? 0 : 1;
-    }
 
     bool isValidEtaPhiBin(Int_t etaBin, Int_t phiBin) {
         return 0 <= etaBin && etaBin < kEtaPhiBins && 0 <= phiBin && phiBin < kEtaPhiBins;
@@ -83,8 +58,18 @@ namespace {
 
         const Double_t halfEtaBin = 0.5 * etaBinWidth * bShift;
         const Double_t halfPhiBin = 0.5 * phiBinWidth * bShift;
-        const Int_t etaBin = static_cast<Int_t>((hitEta - etaMin - halfEtaBin) / etaBinWidth);
-        const Int_t phiBin = static_cast<Int_t>((hitPhi - phiMin - halfPhiBin) / phiBinWidth);
+        const Double_t shiftedEtaMin = etaMin + halfEtaBin;
+        const Double_t shiftedEtaMax = etaMax + halfEtaBin;
+        const Double_t shiftedPhiMin = phiMin + halfPhiBin;
+        const Double_t shiftedPhiMax = phiMax + halfPhiBin;
+
+        if(hitEta < shiftedEtaMin || hitEta >= shiftedEtaMax ||
+           hitPhi < shiftedPhiMin || hitPhi >= shiftedPhiMax) {
+            return {kInvalidEtaPhiBin, kInvalidEtaPhiBin};
+        }
+
+        const Int_t etaBin = static_cast<Int_t>(std::floor((hitEta - shiftedEtaMin) / etaBinWidth));
+        const Int_t phiBin = static_cast<Int_t>(std::floor((hitPhi - shiftedPhiMin) / phiBinWidth));
 
         return {etaBin, phiBin};
     }
@@ -97,15 +82,15 @@ namespace {
     void fillEtaPhiGrids(const SimTrackerHitKuma& hits, HitScanState& state,
                          Double_t timeResolution, Double_t timeSliceStart, Double_t timeSliceEnd,
                          EtaPhiGrid& grid0, EtaPhiGrid& gridShifted, BinFunc binFunc) {
-        if(state.done) return;
-
         const size_t hitCount = hits.getHitSize();
+        while(state.nextHit < hitCount &&
+              hits.getTime(state.nextHit) + timeResolution < timeSliceStart) {
+            state.nextHit++;
+        }
+
         for(size_t iHit = state.nextHit; iHit < hitCount; ++iHit) {
             const Double_t hitT = hits.getTime(iHit);
-            if(hitT - timeResolution > timeSliceEnd) {
-                state.nextHit = iHit;
-                return;
-            }
+            if(hitT - timeResolution > timeSliceEnd) break;
             if(!isHitInTimeSlice(hitT, timeResolution, timeSliceStart, timeSliceEnd)) continue;
 
             const TVector3 hitPos = hitPosition(hits, iHit);
@@ -115,41 +100,6 @@ namespace {
             if(isValidEtaPhiBin(eta0, phi0)) grid0[eta0][phi0]++;
             if(isValidEtaPhiBin(eta1, phi1)) gridShifted[eta1][phi1]++;
         }
-
-        state.nextHit = hitCount;
-        state.done = true;
-    }
-
-    template <typename BinFunc>
-    size_t countEtaPhiMatches(const SimTrackerHitKuma& hits, HitScanState& state,
-                              Double_t timeResolution, Double_t timeSliceStart, Double_t timeSliceEnd,
-                              const EtaPhiGrid& grid0, const EtaPhiGrid& gridShifted, Int_t requiredGridCount,
-                              BinFunc binFunc) {
-        if(state.done) return 0;
-
-        size_t matches = 0;
-        const size_t hitCount = hits.getHitSize();
-        for(size_t iHit = state.nextHit; iHit < hitCount; ++iHit) {
-            const Double_t hitT = hits.getTime(iHit);
-            if(hitT - timeResolution > timeSliceEnd) {
-                state.nextHit = iHit;
-                return matches;
-            }
-            if(!isHitInTimeSlice(hitT, timeResolution, timeSliceStart, timeSliceEnd)) continue;
-
-            const TVector3 hitPos = hitPosition(hits, iHit);
-            const auto [eta0, phi0] = binFunc(hitPos.Eta(), hitPos.Phi(), 0);
-            const auto [eta1, phi1] = binFunc(hitPos.Eta(), hitPos.Phi(), 1);
-
-            if((isValidEtaPhiBin(eta0, phi0) && grid0[eta0][phi0] >= requiredGridCount) ||
-               (isValidEtaPhiBin(eta1, phi1) && gridShifted[eta1][phi1] >= requiredGridCount)) {
-                matches++;
-            }
-        }
-
-        state.nextHit = hitCount;
-        state.done = true;
-        return matches;
     }
 
     size_t countGridCellsWithMultiplicity(const EtaPhiGrid& grid0, const EtaPhiGrid& gridShifted, Int_t threshold) {
@@ -162,35 +112,57 @@ namespace {
         return count;
     }
 
-    size_t countTimedHits(const SimTrackerHitKuma& hits, HitScanState& state,
-                          Double_t timeResolution, Double_t timeSliceStart, Double_t timeSliceEnd) {
-        if(state.done) return 0;
-
-        size_t count = 0;
+    template <typename BinFunc>
+    void fillMatchedCalorimeterGrids(const SimTrackerHitKuma& hits, Double_t timeResolution,
+        Double_t timeSliceStart, Double_t timeSliceEnd,
+        const EtaPhiGrid& trackerGrid, const EtaPhiGrid& shiftedTrackerGrid,
+        EtaPhiGrid& calorimeterGrid, EtaPhiGrid& shiftedCalorimeterGrid,
+        EtaPhiEnergyGrid& energyGrid, EtaPhiEnergyGrid& shiftedEnergyGrid, BinFunc binFunc)
+    {
         const size_t hitCount = hits.getHitSize();
-        for(size_t iHit = state.nextHit; iHit < hitCount; ++iHit) {
+        for(size_t iHit = 0; iHit < hitCount; ++iHit) {
             const Double_t hitT = hits.getTime(iHit);
-            if(hitT - timeResolution > timeSliceEnd) {
-                state.nextHit = iHit;
-                return count;
+            if(hitT - timeResolution > timeSliceEnd) break;
+            if(!isHitInTimeSlice(hitT, timeResolution, timeSliceStart, timeSliceEnd)) continue;
+
+            const TVector3 hitPos = hitPosition(hits, iHit);
+            const auto [eta0, phi0] = binFunc(hitPos.Eta(), hitPos.Phi(), 0);
+            const auto [eta1, phi1] = binFunc(hitPos.Eta(), hitPos.Phi(), 1);
+            const Double_t hitEnergy = hits.getEDep(iHit);
+
+            if(isValidEtaPhiBin(eta0, phi0) && trackerGrid[eta0][phi0] > 0) {
+                calorimeterGrid[eta0][phi0]++;
+                energyGrid[eta0][phi0] += hitEnergy;
             }
-            if(isHitInTimeSlice(hitT, timeResolution, timeSliceStart, timeSliceEnd)) count++;
+            if(isValidEtaPhiBin(eta1, phi1) && shiftedTrackerGrid[eta1][phi1] > 0) {
+                shiftedCalorimeterGrid[eta1][phi1]++;
+                shiftedEnergyGrid[eta1][phi1] += hitEnergy;
+            }
         }
-
-        state.nextHit = hitCount;
-        state.done = true;
-        return count;
     }
 
-    template <typename AssociationCollection>
-    std::unordered_multimap<RawHitKey, size_t> makeAssociationIndex(const AssociationCollection& associations) {
-        std::unordered_multimap<RawHitKey, size_t> index;
-        index.reserve(associations.size());
-        for(size_t iAssoc = 0; iAssoc < associations.size(); ++iAssoc) {
-            index.emplace(makeRawHitKey(associations.at(iAssoc).getRawHit().getObjectID()), iAssoc);
+    void fillTowerHistograms( const EtaPhiGrid& hitGrid, const EtaPhiEnergyGrid& energyGrid,
+        TH1I& hitHistogram, TH1D& energyHistogram)
+    {
+        for(size_t iEta = 0; iEta < kEtaPhiBins; ++iEta) {
+            for(size_t iPhi = 0; iPhi < kEtaPhiBins; ++iPhi) {
+                if(hitGrid[iEta][iPhi] < 1) continue;
+                hitHistogram.Fill(hitGrid[iEta][iPhi]);
+                energyHistogram.Fill(energyGrid[iEta][iPhi]);
+            }
         }
-        return index;
     }
+
+    void fillGridMultiplicityHistogram(const EtaPhiGrid& grid, const EtaPhiGrid& shiftedGrid, TH1I& histogram)
+    {
+        for(size_t iEta = 0; iEta < kEtaPhiBins; ++iEta) {
+            for(size_t iPhi = 0; iPhi < kEtaPhiBins; ++iPhi) {
+                histogram.Fill(grid[iEta][iPhi]);
+                histogram.Fill(shiftedGrid[iEta][iPhi]);
+            }
+        }
+    }
+
 }
 
 EventAna::EventAna(const std::string& inputFile, const std::string& outputFile) : 
@@ -211,7 +183,7 @@ void EventAna::EventLoop() {
 
     // 21, 53, 55, 61, 76, 128, 135, 139, 142, 159, 169, 174, 198, 205, 210, 227, 231, 237, 241, 249, 269, 271, 273, 275, 276, 281, 284, 287, 297, 317, 320, 355, 359, 360, 380, 389, 434, 443, 447, 465, 479, 506, 521, 526, 541, 546, 548, 551, 564, 598, 605, 614, 623, 625, 636, 642, 665, 669, 670, 720, 728, 742, 743, 744, 746, 754, 759, 783, 795, 797, 813, 814, 816, 820, 821, 826, 856, 863, 876, 877, 879, 888, 897, 903, 919, 938, 959, 961, 963, 969, 988, 991, 993
 
-    nEvents = 1000;
+    nEvents = std::min<decltype(nEvents)>(nEvents, 100);
     // nEvents = 10;
     if(bTargetEV) nEvents = m_vTargetEvents.size();
 
@@ -257,11 +229,6 @@ void EventAna::EventLoop() {
             m_hCalRecNumOfHitsInTS[iCalRec][iPKind]->Scale(1./nEvents);
         }
     }
-
-    Double_t TrigRate_Phys = m_numOfPhysTrig / (1.0*nEvents);
-    Double_t TrigRate_Fake = m_numOfFakeTrig / (1.0*nEvents);
-    Double_t numOfTS = m_timeframe_width / m_timesplit_width;
-    TrigRate_Fake *= (numOfTS - 1);
 
     EditHists();
     OFileWrite();
@@ -319,7 +286,6 @@ std::pair<Int_t, Int_t> EventAna::forwardEndEtaPhiBins(Double_t hitEta, Double_t
 
 void EventAna::preEventIDVer5(const podio::Frame& frame, Double_t vtxTime){
     (void)frame;
-    (void)vtxTime;
 
     size_t iTimeSlice = 0;
 
@@ -340,8 +306,6 @@ void EventAna::preEventIDVer5(const podio::Frame& frame, Double_t vtxTime){
     const auto& recHitsZDCECal = m_calDetsHits.at(kCalZDC);
 
     std::array<HitScanState, InputDataConfig::kTrkRecCollections.size()> trkScanStates;
-    std::array<HitScanState, InputDataConfig::kCalRecCollections.size()> calScanStates;
-
     const auto backEndBins = [this](Double_t eta, Double_t phi, Int_t shift) {
         return backEndEtaPhiBins(eta, phi, shift);
     };
@@ -367,115 +331,34 @@ void EventAna::preEventIDVer5(const podio::Frame& frame, Double_t vtxTime){
 
         // if(bBkgTS) continue;
         // std::cout << "sssssssss MPGD hit Cheeeeeeeeeeeeeeeeeeck" << std::endl;
-        EtaPhiGrid backEndGridTest0 = {};
-        EtaPhiGrid backEndGridShiftedTest0 = {};
- 
-        // Int_t numOfECalHitTrk[10][10] = {};
-        // Double_t eOfECalHitTrk[10][10] = {};
-        // Int_t numOfECalHitCal[10][10] = {};
-        // Double_t eOfECalHitCal[10][10] = {};
-        // for(size_t iTrkHit = 0; iTrkHit < recHitsMPGDBarrelIn.getHitSize(); ++iTrkHit){
-        //         const Double_t hitT = recHitsMPGDBarrelIn.getTime(iTrkHit);
-        //     if(hitT + timeResolution_MPGD < tsTimeS || hitT - timeResolution_MPGD > tsTimeE) continue;
-        //     const TVector3 hitPos = hitPosition(recHitsMPGDBarrelIn, iTrkHit);
-        //     const auto [eta0, phi0] = barrelBins(hitPos.Eta(), hitPos.Phi(), 0);
-        //     const auto [eta1, phi1] = barrelBins(hitPos.Eta(), hitPos.Phi(), 1);
-        //     if(isValidEtaPhiBin(eta0, phi0)) numOfECalHitTrk[eta0][phi0]++;
-        //     if(isValidEtaPhiBin(eta1, phi1)) numOfECalHitTrk[eta1][phi1]++;
-        // }
-        // for(size_t iTrkHit = 0; iTrkHit < recHitsMPGDBarrelOut.getHitSize(); ++iTrkHit){
-        //         const Double_t hitT = recHitsMPGDBarrelOut.getTime(iTrkHit);
-        //     if(hitT + timeResolution_MPGD < tsTimeS || hitT - timeResolution_MPGD > tsTimeE) continue;
-        //     const TVector3 hitPos = hitPosition(recHitsMPGDBarrelOut, iTrkHit);
-        //     const auto [eta0, phi0] = barrelBins(hitPos.Eta(), hitPos.Phi(), 0);
-        //     const auto [eta1, phi1] = barrelBins(hitPos.Eta(), hitPos.Phi(), 1);
-        //     if(isValidEtaPhiBin(eta0, phi0)) numOfECalHitTrk[eta0][phi0]++;
-        //     if(isValidEtaPhiBin(eta1, phi1)) numOfECalHitTrk[eta1][phi1]++;
-        // }
-        // for(size_t iTrkHit = 0; iTrkHit < recHitsTOFBarrel.getHitSize(); ++iTrkHit){
-        //         const Double_t hitT = recHitsTOFBarrel.getTime(iTrkHit);
-        //     if(hitT + timeResolution_ACLGad < tsTimeS || hitT - timeResolution_ACLGad > tsTimeE) continue;
-        //     const TVector3 hitPos = hitPosition(recHitsTOFBarrel, iTrkHit);
-        //     const auto [eta0, phi0] = barrelBins(hitPos.Eta(), hitPos.Phi(), 0);
-        //     const auto [eta1, phi1] = barrelBins(hitPos.Eta(), hitPos.Phi(), 1);
-        //     if(isValidEtaPhiBin(eta0, phi0)) numOfECalHitTrk[eta0][phi0]++;
-        //     if(isValidEtaPhiBin(eta1, phi1)) numOfECalHitTrk[eta1][phi1]++;
-        // }
-        // for(size_t iECal_BE = 0; iECal_BE < recHitsECalBarrel.getHitSize(); ++iECal_BE){
-        //         const Double_t hitT = recHitsECalBarrel.getTime(iECal_BE);
-        //     if(hitT + timeResolution_EMCal < tsTimeS || hitT - timeResolution_EMCal > tsTimeE) continue;
-        //     const TVector3 hitPos = hitPosition(recHitsECalBarrel, iECal_BE);
-        //     const auto [eta0, phi0] = barrelBins(hitPos.Eta(), hitPos.Phi(), 0);
-        //     const auto [eta1, phi1] = barrelBins(hitPos.Eta(), hitPos.Phi(), 1);
-
-        //     // std::cout << "Time Slice:" << iTimeSlice << " :: ECal ZDC hit: eta = " << hitPos.Eta() << ", phi = " << hitPos.Phi() << ", (eta0:phi0) = (" << eta0 << ":" << phi0 << "), (eta1:phi1) = (" << eta1 << ":" << phi1 << ")" << std::endl;
-        //     if(isValidEtaPhiBin(eta0, phi0) && numOfECalHitTrk[eta0][phi0] > 0) {
-        //         numOfECalHitCal[eta0][phi0]++;
-        //         eOfECalHitCal[eta0][phi0] += recHitsECalBarrel.getEDep(iECal_BE);
-        //     }
-        // }
-        // for(size_t iEtaBin = 0; iEtaBin < kEtaPhiBins; ++iEtaBin){
-        //     for(size_t iPhiBin = 0; iPhiBin < kEtaPhiBins; ++iPhiBin){
-        //         if(numOfECalHitCal[iEtaBin][iPhiBin] < 1) continue;
-        //         std::cout << "TF:" << m_pubEvNum << ", TS:" << iTimeSlice << " :: ECal Barrel hit in tower: etaBin = " << iEtaBin << ", phiBin = " << iPhiBin << ", numOfHits = " << numOfECalHitCal[iEtaBin][iPhiBin] << ", totalEDep = " << eOfECalHitCal[iEtaBin][iPhiBin] << std::endl;
-        //         m_hECalBarrelNumOfHitsInTower[bBkgTS]->Fill(numOfECalHitCal[iEtaBin][iPhiBin]);
-        //         m_hECalBarrelNumOfHitsTimesEInTower[bBkgTS]->Fill(eOfECalHitCal[iEtaBin][iPhiBin]);
-        //     }
-        // }
-
-        // Int_t tempNumOfZDC_ECalHit = 0;
-        // Double_t tempEDepOfZDC_ECalHit = 0.0;
-        // for(size_t iECal_BE = 0; iECal_BE < recHitsZDCECal.getHitSize(); ++iECal_BE){
-        //     const Double_t hitT = recHitsZDCECal.getTime(iECal_BE);
-        //     if(hitT + timeResolution_EMCal < tsTimeS || hitT - timeResolution_EMCal > tsTimeE) continue;
-        //     tempNumOfZDC_ECalHit++;
-        //     tempEDepOfZDC_ECalHit += recHitsZDCECal.getEDep(iECal_BE);
-        // }
-        // if(tempNumOfZDC_ECalHit > 0) std::cout << "TF:" << m_pubEvNum << ", TS:" << iTimeSlice << " :: ECal ZDC hit in tower: numOfHits = " << tempNumOfZDC_ECalHit << ", totalEDep = " << tempEDepOfZDC_ECalHit << std::endl;
-        // m_hECalBarrelNumOfHitsInTower[bBkgTS]->Fill(tempNumOfZDC_ECalHit);
-        // m_hECalBarrelNumOfHitsTimesEInTower[bBkgTS]->Fill(tempEDepOfZDC_ECalHit);
-        // std::cout << "eeeeeeeee MPGD hit Cheeeeeeeeeeeeeeeeeeck" << std::endl;
-
-
-        std::array<size_t, 5> multiHits = {0, 0, 0, 0, 0};
+        std::array<Double_t, 5> triggerValues = {};
 
         EtaPhiGrid backEndTrkGrid = {};
         EtaPhiGrid backEndTrkGridShifted = {};
         EtaPhiGrid backEndCalGrid = {};
         EtaPhiGrid backEndCalGridShifted = {};
+        EtaPhiEnergyGrid backEndCalEnergyGrid = {};
+        EtaPhiEnergyGrid backEndCalEnergyGridShifted = {};
         fillEtaPhiGrids(recHitsMPGDBackEnd, trkScanStates[kTrkBackwardMPGD],
                         timeResolution_MPGD, tsTimeS, tsTimeE,
                         backEndTrkGrid, backEndTrkGridShifted, backEndBins);
-        multiHits[0] = countEtaPhiMatches(recHitsECalBackEnd, calScanStates[kCalEndcapN],
-                                          timeResolution_EMCal, tsTimeS, tsTimeE,
-                                          backEndCalGrid, backEndCalGridShifted, 1, backEndBins);
-        for(size_t iECal_BE = 0; iECal_BE < recHitsECalBackEnd.getHitSize(); ++iECal_BE){
-                const Double_t hitT = recHitsECalBackEnd.getTime(iECal_BE);
-            if(hitT + timeResolution_EMCal < tsTimeS || hitT - timeResolution_EMCal > tsTimeE) continue;
-            const TVector3 hitPos = hitPosition(recHitsECalBackEnd, iECal_BE);
-            const auto [eta0, phi0] = barrelBins(hitPos.Eta(), hitPos.Phi(), 0);
-            const auto [eta1, phi1] = barrelBins(hitPos.Eta(), hitPos.Phi(), 1);
-            if(isValidEtaPhiBin(eta0, phi0) && backEndTrkGrid[eta0][phi0] > 0) {
-                backEndCalGrid[eta0][phi0]++;
-            }
-            if(isValidEtaPhiBin(eta1, phi1) && backEndTrkGridShifted[eta1][phi1] > 0) {
-                backEndCalGridShifted[eta1][phi1]++;
-            }
-
-        }
-        multiHits[0] = countGridCellsWithMultiplicity(backEndCalGrid, backEndCalGridShifted, 10);
-        // for(size_t iEtaBin = 0; iEtaBin < kEtaPhiBins; ++iEtaBin){
-        //     for(size_t iPhiBin = 0; iPhiBin < kEtaPhiBins; ++iPhiBin){
-        //         if(backEndCalGrid[iEtaBin][iPhiBin] < 1) continue;
-        //         std::cout << "TF:" << m_pubEvNum << ", TS:" << iTimeSlice << " :: ECal Barrel hit in tower: etaBin = " << iEtaBin << ", phiBin = " << iPhiBin << ", numOfHits = " << backEndCalGrid[iEtaBin][iPhiBin] << std::endl;
-        //         // m_hECalBarrelNumOfHitsInTower[bBkgTS]->Fill(backEndCalGrid[iEtaBin][iPhiBin]);
-        //     }
-        // }
+        fillMatchedCalorimeterGrids(
+            recHitsECalBackEnd, timeResolution_EMCal, tsTimeS, tsTimeE,
+            backEndTrkGrid, backEndTrkGridShifted,
+            backEndCalGrid, backEndCalGridShifted,
+            backEndCalEnergyGrid, backEndCalEnergyGridShifted, backEndBins);
+        triggerValues[0] = countGridCellsWithMultiplicity(backEndCalGrid, backEndCalGridShifted, 1);
+        fillTowerHistograms(
+            backEndCalGrid, backEndCalEnergyGrid,
+            *m_hECalBackEndNumOfHitsInTower[bBkgTS],
+            *m_hECalBackEndNumOfHitsTimesEInTower[bBkgTS]);
 
         EtaPhiGrid barrelTrkGrid = {};
         EtaPhiGrid barrelTrkGridShifted = {};
         EtaPhiGrid barrelCalGrid = {};
         EtaPhiGrid barrelCalGridShifted = {};
+        EtaPhiEnergyGrid barrelCalEnergyGrid = {};
+        EtaPhiEnergyGrid barrelCalEnergyGridShifted = {};
         fillEtaPhiGrids(recHitsMPGDBarrelIn, trkScanStates[kTrkMPGDBarrel],
                         timeResolution_MPGD, tsTimeS, tsTimeE,
                         barrelTrkGrid, barrelTrkGridShifted, barrelBins);
@@ -485,108 +368,85 @@ void EventAna::preEventIDVer5(const podio::Frame& frame, Double_t vtxTime){
         fillEtaPhiGrids(recHitsTOFBarrel, trkScanStates[kTrkTOFBarrel],
                         timeResolution_ACLGad, tsTimeS, tsTimeE,
                         barrelTrkGrid, barrelTrkGridShifted, barrelBins);
-        for(size_t iECal_BE = 0; iECal_BE < recHitsECalBarrel.getHitSize(); ++iECal_BE){
-                const Double_t hitT = recHitsECalBarrel.getTime(iECal_BE);
-            if(hitT + timeResolution_EMCal < tsTimeS || hitT - timeResolution_EMCal > tsTimeE) continue;
-            const TVector3 hitPos = hitPosition(recHitsECalBarrel, iECal_BE);
-            const auto [eta0, phi0] = barrelBins(hitPos.Eta(), hitPos.Phi(), 0);
-            const auto [eta1, phi1] = barrelBins(hitPos.Eta(), hitPos.Phi(), 1);
-            if(isValidEtaPhiBin(eta0, phi0) && barrelTrkGrid[eta0][phi0] > 0) {
-                barrelCalGrid[eta0][phi0]++;
-            }
-            if(isValidEtaPhiBin(eta1, phi1) && barrelTrkGridShifted[eta1][phi1] > 0) {
-                barrelCalGridShifted[eta1][phi1]++;
-            }
-        }
-        multiHits[1] = countGridCellsWithMultiplicity(barrelCalGrid, barrelCalGridShifted, 10);
+        fillMatchedCalorimeterGrids(
+            recHitsECalBarrel, timeResolution_EMCal, tsTimeS, tsTimeE,
+            barrelTrkGrid, barrelTrkGridShifted,
+            barrelCalGrid, barrelCalGridShifted,
+            barrelCalEnergyGrid, barrelCalEnergyGridShifted, barrelBins);
+        triggerValues[1] = countGridCellsWithMultiplicity(barrelCalGrid, barrelCalGridShifted, 1);
+        fillTowerHistograms(
+            barrelCalGrid, barrelCalEnergyGrid,
+            *m_hECalBarrelNumOfHitsInTower[bBkgTS],
+            *m_hECalBarrelNumOfHitsTimesEInTower[bBkgTS]);
 
         EtaPhiGrid frontEndTrkGrid = {};
         EtaPhiGrid frontEndTrkGridShifted = {};
         EtaPhiGrid frontEndCalGrid = {};
         EtaPhiGrid frontEndCalGridShifted = {};
+        EtaPhiEnergyGrid frontEndCalEnergyGrid = {};
+        EtaPhiEnergyGrid frontEndCalEnergyGridShifted = {};
         fillEtaPhiGrids(recHitsMPGDForwardEnd, trkScanStates[kTrkForwardMPGD],
                         timeResolution_MPGD, tsTimeS, tsTimeE,
                         frontEndTrkGrid, frontEndTrkGridShifted, forwardEndBins);
         fillEtaPhiGrids(recHitsTOFForwardEnd, trkScanStates[kTrkTOFEndcap],
                         timeResolution_ACLGad, tsTimeS, tsTimeE,
                         frontEndTrkGrid, frontEndTrkGridShifted, forwardEndBins);
-        for(size_t iECal_BE = 0; iECal_BE < recHitsECalForwardEnd.getHitSize(); ++iECal_BE){
-                const Double_t hitT = recHitsECalForwardEnd.getTime(iECal_BE);
-            if(hitT + timeResolution_EMCal < tsTimeS || hitT - timeResolution_EMCal > tsTimeE) continue;
-            const TVector3 hitPos = hitPosition(recHitsECalForwardEnd, iECal_BE);
-            const auto [eta0, phi0] = forwardEndBins(hitPos.Eta(), hitPos.Phi(), 0);
-            const auto [eta1, phi1] = forwardEndBins(hitPos.Eta(), hitPos.Phi(), 1);
-            if(isValidEtaPhiBin(eta0, phi0) && frontEndTrkGrid[eta0][phi0] > 0) {
-                frontEndCalGrid[eta0][phi0]++;
-            }
-            if(isValidEtaPhiBin(eta1, phi1) && frontEndTrkGridShifted[eta1][phi1] > 0) {
-                frontEndCalGridShifted[eta1][phi1]++;
-            }
-        }
-        multiHits[2] = countGridCellsWithMultiplicity(frontEndCalGrid, frontEndCalGridShifted, 5);
-        // for(size_t iEtaBin = 0; iEtaBin < kEtaPhiBins; ++iEtaBin){
-        //     for(size_t iPhiBin = 0; iPhiBin < kEtaPhiBins; ++iPhiBin){
-        //         if(frontEndCalGrid[iEtaBin][iPhiBin] < 1) continue;
-        //         std::cout << "TF:" << m_pubEvNum << ", TS:" << iTimeSlice << " :: ECal Front End hit in tower: etaBin = " << iEtaBin << ", phiBin = " << iPhiBin << ", numOfHits = " << frontEndCalGrid[iEtaBin][iPhiBin] << std::endl;
-        //         // m_hECalBarrelNumOfHitsInTower[bBkgTS]->Fill(frontEndCalGrid[iEtaBin][iPhiBin]);
-        //     }
-        // }
+        fillMatchedCalorimeterGrids(
+            recHitsECalForwardEnd, timeResolution_EMCal, tsTimeS, tsTimeE,
+            frontEndTrkGrid, frontEndTrkGridShifted,
+            frontEndCalGrid, frontEndCalGridShifted,
+            frontEndCalEnergyGrid, frontEndCalEnergyGridShifted, forwardEndBins);
+        triggerValues[2] = countGridCellsWithMultiplicity(frontEndCalGrid, frontEndCalGridShifted, 1);
+        fillTowerHistograms(
+            frontEndCalGrid, frontEndCalEnergyGrid,
+            *m_hECalFrontEndNumOfHitsInTower[bBkgTS],
+            *m_hECalFrontEndNumOfHitsTimesEInTower[bBkgTS]);
 
-        Int_t numOfBOTrk = 0;
-        Int_t totEDepOfBOCal = 0;
+        size_t numOfB0TrackerHits = 0;
         for(size_t iB0Trk = 0; iB0Trk < recHitsB0Trk.getHitSize(); ++iB0Trk){
             const Double_t hitT = recHitsB0Trk.getTime(iB0Trk);
-            if(hitT + timeResolution_ACLGad < tsTimeS || hitT - timeResolution_ACLGad > tsTimeE) continue;
-            numOfBOTrk++;
+            if(!isHitInTimeSlice(hitT, timeResolution_ACLGad, tsTimeS, tsTimeE)) continue;
+            numOfB0TrackerHits++;
         }
-        multiHits[3] = numOfBOTrk;
-        // multiHits[3] = countTimedHits(recHitsB0Trk, trkScanStates[kTrkB0],
-        //                               timeResolution_ACLGad, tsTimeS, tsTimeE);
+        triggerValues[3] = numOfB0TrackerHits;
 
-        
-        // multiHits[4] = countTimedHits(recHitsZDCECal, calScanStates[kCalZDC],
-        //                               timeResolution_EMCal, tsTimeS, tsTimeE);
-        Int_t totEDepOfZDC = 0;
+        Double_t totalZDCEnergy = 0.0;
         for(size_t iECalZDC = 0; iECalZDC < recHitsZDCECal.getHitSize(); ++iECalZDC){
             const Double_t hitT = recHitsZDCECal.getTime(iECalZDC);
-            if(hitT + timeResolution_EMCal < tsTimeS || hitT - timeResolution_EMCal > tsTimeE) continue;
-            totEDepOfZDC += recHitsZDCECal.getEDep(iECalZDC);
+            if(!isHitInTimeSlice(hitT, timeResolution_EMCal, tsTimeS, tsTimeE)) continue;
+            totalZDCEnergy += recHitsZDCECal.getEDep(iECalZDC);
         }
-        multiHits[4] = totEDepOfZDC;
-        
-        for(size_t iEtaBin = 0; iEtaBin < kEtaPhiBins; ++iEtaBin){
-            for(size_t iPhiBin = 0; iPhiBin < kEtaPhiBins; ++iPhiBin){
-                m_hTrigMultiHits[0][bBkgTS]->Fill(backEndCalGrid[iEtaBin][iPhiBin]);
-                m_hTrigMultiHits[0][bBkgTS]->Fill(backEndCalGridShifted[iEtaBin][iPhiBin]);
-                m_hTrigMultiHits[1][bBkgTS]->Fill(barrelCalGrid[iEtaBin][iPhiBin]);
-                m_hTrigMultiHits[1][bBkgTS]->Fill(barrelCalGridShifted[iEtaBin][iPhiBin]);
-                m_hTrigMultiHits[2][bBkgTS]->Fill(frontEndCalGrid[iEtaBin][iPhiBin]);
-                m_hTrigMultiHits[2][bBkgTS]->Fill(frontEndCalGridShifted[iEtaBin][iPhiBin]);
-            }
+        triggerValues[4] = totalZDCEnergy;
+
+        fillGridMultiplicityHistogram(
+            backEndCalGrid, backEndCalGridShifted, *m_hTrigMultiHits[0][bBkgTS]);
+        fillGridMultiplicityHistogram(
+            barrelCalGrid, barrelCalGridShifted, *m_hTrigMultiHits[1][bBkgTS]);
+        fillGridMultiplicityHistogram(
+            frontEndCalGrid, frontEndCalGridShifted, *m_hTrigMultiHits[2][bBkgTS]);
+
+        for(size_t iTrigger = 0; iTrigger < triggerValues.size(); ++iTrigger) {
+            m_hTrigThreHits[iTrigger][bBkgTS]->Fill(triggerValues[iTrigger]);
         }
-        m_hTrigThreHits[0][bBkgTS]->Fill(multiHits[0]);
-        m_hTrigThreHits[1][bBkgTS]->Fill(multiHits[1]);
-        m_hTrigThreHits[2][bBkgTS]->Fill(multiHits[2]);
-        m_hTrigThreHits[3][bBkgTS]->Fill(multiHits[3]);
-        m_hTrigThreHits[4][bBkgTS]->Fill(multiHits[4]);
 
-        Bool_t bTrigs[6] = {};
-        if((multiHits[0] + multiHits[1] + multiHits[2]) > 0 && multiHits[3] > 4) bTrigs[0] = kTRUE;
-        if((multiHits[0] + multiHits[1] + multiHits[2]) > 0 && multiHits[4] > 50) bTrigs[1] = kTRUE;
-        // if(multiHits[1] > 2 && multiHits[2] > 2) bTrigs[2] = kTRUE;
-        // if(multiHits[0] > 0 && multiHits[3] > 0) bTrigs[3] = kTRUE;
-        // if(multiHits[0] > 0 && multiHits[2] > 0) bTrigs[4] = kTRUE;
-        // if(multiHits[2] > 0 && multiHits[4] > 50) bTrigs[5] = kTRUE;
+        const Double_t etaPhiTriggerSum = triggerValues[0] + triggerValues[1] + triggerValues[2];
+        const std::array<Bool_t, 6> triggers = {
+            triggerValues[1] > 2 && triggerValues[2] > 2,
+            triggerValues[0] > 0 && triggerValues[3] > 0,
+            triggerValues[0] > 0 && triggerValues[2] > 0,
+            triggerValues[2] > 0 && triggerValues[4] > 50,
+            etaPhiTriggerSum > 0 && triggerValues[3] > 4,
+            etaPhiTriggerSum > 0 && triggerValues[4] > 50
+        };
 
+        Bool_t anyTrigger = kFALSE;
+        for(size_t iTrigger = 0; iTrigger < triggers.size(); ++iTrigger) {
+            if(!triggers[iTrigger]) continue;
+            anyTrigger = kTRUE;
+            m_hCombTriggerEfficiency[bBkgTS]->Fill(iTrigger + 2);
+        }
 
-        if(bTrigs[0]) m_hCombTriggerEfficiency[bBkgTS]->Fill(2); // CentralTrk+B0Trk
-        if(bTrigs[1]) m_hCombTriggerEfficiency[bBkgTS]->Fill(3); // CentralTrk+ZDC
-        if(bTrigs[2]) m_hCombTriggerEfficiency[bBkgTS]->Fill(4); // Barrel + Forward
-        if(bTrigs[3]) m_hCombTriggerEfficiency[bBkgTS]->Fill(5); // BackEndTrk+B0Trk
-        if(bTrigs[4]) m_hCombTriggerEfficiency[bBkgTS]->Fill(6); // CentralTrk+B0Trk
-        if(bTrigs[5]) m_hCombTriggerEfficiency[bBkgTS]->Fill(7); // CentralTrk+ZDC
-
-        if(bTrigs[0] || bTrigs[1] || bTrigs[2] || bTrigs[3] || bTrigs[4] || bTrigs[5]) m_hCombTriggerEfficiency[bBkgTS]->Fill(1);
+        if(anyTrigger) m_hCombTriggerEfficiency[bBkgTS]->Fill(1);
         else if(!bBkgTS) m_vTargetEvents.push_back(m_pubEvNum);
     } // == e == while loop for time slices ==
 }
@@ -624,14 +484,6 @@ void EventAna::OFileInit() {
 
     TString histName = "";
     TString histTitle = "";
-
-    m_hBSiRecDepE = new TH1D("m_hBSiRecDepE", "m_hBSiRecDepE; depE [MeV];count", 100, 0, 0.1);
-    m_hESiRecDepE = new TH1D("m_hESiRecDepE", "m_hESiRecDepE; depE [MeV];count", 100, 0, 0.1);
-    m_hBMPGDRecDepE = new TH1D("m_hBMPGDRecDepE", "m_hBMPGDRecDepE; depE [MeV];count", 100, 0, 0.1);
-    m_hEMPGDRecDepE = new TH1D("m_hEMPGDRecDepE", "m_hEMPGDRecDepE; depE [MeV];count", 100, 0, 0.1);
-    m_hBTOFRecDepE = new TH1D("m_hBTOFRecDepE", "m_hBTOFRecDepE; depE [MeV];count", 100, 0, 0.1);
-    m_hETOFRecDepE = new TH1D("m_hETOFRecDepE", "m_hETOFRecDepE; depE [MeV];count", 100, 0, 0.1);
-    m_hB0RecDepE = new TH1D("m_hB0RecDepE", "m_hB0RecDepE; depE [MeV];count", 100, 0, 0.1);
 
     for(size_t iTrkDet = 0; iTrkDet < 9; iTrkDet++){
         for(size_t iPKind = 0; iPKind < 6; iPKind++){
@@ -712,25 +564,40 @@ void EventAna::OFileInit() {
     for(size_t iPKind = 0; iPKind < 2; iPKind++){
         m_hCombTriggerEfficiency[iPKind] = new TH1I(TString::Format("m_hCombTriggerEfficiency_%s", m_biPhysName[iPKind].Data()),
                                                       TString::Format("m_hCombTriggerEfficiency_%s;trigger combination;count", m_biPhysName[iPKind].Data()),
-                                                      3, 0.5, 3.5);
+                                                      8, 0.5, 8.5);
         m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(1, "Total");
-        m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(2, "CentralTrk+B0Trk");
-        m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(3, "CentralTrk+ZDC");
-        // m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(4, "BackEnd+B0Trk");
-        // m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(5, "Barrel+ZDC");
-        // m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(6, "CentralTrk+B0Trk");
-        // m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(7, "CentralTrk+ZDC");
-        // m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(8, "Other");
+        m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(2, "Barrel+FrontEnd");
+        m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(3, "BackEnd+FrontEnd");
+        m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(4, "BackEnd+B0Trk");
+        m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(5, "Barrel+ZDC");
+        m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(6, "Barrel+FrontEnd+ZDC");
+        m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(7, "BackEnd+FrontEnd+B0Trk");
+        m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(8, "Other");
     }
 
 
     for(size_t iPKind = 0; iPKind < 2; iPKind++){
+        m_hECalBackEndNumOfHitsInTower[iPKind] = new TH1I(TString::Format("m_hECalBackEndNumOfHitsInTower_%s", m_biPhysName[iPKind].Data()),
+                                                      TString::Format("m_hECalBackEndNumOfHitsInTower_%s;number of hits;count", m_biPhysName[iPKind].Data()),
+                                                      100, 0, 100);
+        m_hECalBackEndNumOfHitsTimesEInTower[iPKind] = new TH1D(TString::Format("m_hECalBackEndNumOfHitsTimesEInTower_%s", m_biPhysName[iPKind].Data()),
+                                                      TString::Format("m_hECalBackEndNumOfHitsTimesEInTower_%s;number of hits times E;count", m_biPhysName[iPKind].Data()),
+                                                      100, 0, 100);
+
         m_hECalBarrelNumOfHitsInTower[iPKind] = new TH1I(TString::Format("m_hECalBarrelNumOfHitsInTower_%s", m_biPhysName[iPKind].Data()),
                                                       TString::Format("m_hECalBarrelNumOfHitsInTower_%s;number of hits;count", m_biPhysName[iPKind].Data()),
-                                                      500, 0, 500);
+                                                      100, 0, 100);
         m_hECalBarrelNumOfHitsTimesEInTower[iPKind] = new TH1D(TString::Format("m_hECalBarrelNumOfHitsTimesEInTower_%s", m_biPhysName[iPKind].Data()),
                                                       TString::Format("m_hECalBarrelNumOfHitsTimesEInTower_%s;number of hits times E;count", m_biPhysName[iPKind].Data()),
-                                                      100, 0, 500);
+                                                      100, 0, 100);
+
+
+        m_hECalFrontEndNumOfHitsInTower[iPKind] = new TH1I(TString::Format("m_hECalFrontEndNumOfHitsInTower_%s", m_biPhysName[iPKind].Data()),
+                                                      TString::Format("m_hECalFrontEndNumOfHitsInTower_%s;number of hits;count", m_biPhysName[iPKind].Data()),
+                                                      100, 0, 100);
+        m_hECalFrontEndNumOfHitsTimesEInTower[iPKind] = new TH1D(TString::Format("m_hECalFrontEndNumOfHitsTimesEInTower_%s", m_biPhysName[iPKind].Data()),
+                                                      TString::Format("m_hECalFrontEndNumOfHitsTimesEInTower_%s;number of hits times E;count", m_biPhysName[iPKind].Data()),
+                                                      100, 0, 100);
     }
 
 }
@@ -813,13 +680,6 @@ void EventAna::OFileWrite() {
     std::cout << "OFileWrite" << std::endl;
     oFile->cd();
 
-    m_hBSiRecDepE->Write();
-    m_hESiRecDepE->Write();
-    m_hBMPGDRecDepE->Write();
-    m_hEMPGDRecDepE->Write();
-    m_hBTOFRecDepE->Write();
-    m_hETOFRecDepE->Write();
-    m_hB0RecDepE->Write();
 
     for(size_t iTrkDet = 0; iTrkDet < 9; iTrkDet++){
         const auto& detName = m_trkShortDetName[iTrkDet];
@@ -845,8 +705,7 @@ void EventAna::OFileWrite() {
             dirTrkNumOfHitsInTS->WriteObject(m_hTrkNumOfHitsInTS[iTrkDet][iPKind], pKindName.Data());
         }
     }
-    
-    
+        
     for(size_t iCalRec = 0; iCalRec < 7; iCalRec++){
         const auto& detName = m_calRecShortDetName[iCalRec];
         TDirectory* dirCalRecDepE = m_dirCalRecDepE->GetDirectory(detName.Data());
@@ -875,7 +734,6 @@ void EventAna::OFileWrite() {
         }
     }
     
-
     for(size_t iPKind = 0; iPKind < 2; iPKind++){
         for(size_t iTrig = 0; iTrig < 5; iTrig++){
             m_dirTrigMultiHits->cd();
@@ -889,8 +747,12 @@ void EventAna::OFileWrite() {
 
     oFile->cd();
     for(size_t iPKind = 0; iPKind < 2; iPKind++){
+        m_hECalBackEndNumOfHitsInTower[iPKind]->Write();
+        m_hECalBackEndNumOfHitsTimesEInTower[iPKind]->Write();
         m_hECalBarrelNumOfHitsInTower[iPKind]->Write();
         m_hECalBarrelNumOfHitsTimesEInTower[iPKind]->Write();
+        m_hECalFrontEndNumOfHitsInTower[iPKind]->Write();
+        m_hECalFrontEndNumOfHitsTimesEInTower[iPKind]->Write();
     }
 
 

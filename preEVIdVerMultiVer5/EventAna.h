@@ -137,14 +137,6 @@ private:
     TDirectory* m_dirTrigMultiHits;
     TDirectory* m_dirTrigThreHits;
 
-    TH1D* m_hBSiRecDepE;
-    TH1D* m_hESiRecDepE;
-    TH1D* m_hBMPGDRecDepE;
-    TH1D* m_hEMPGDRecDepE;
-    TH1D* m_hBTOFRecDepE;
-    TH1D* m_hETOFRecDepE;
-    TH1D* m_hB0RecDepE;
-
     TH1D* m_hTrkRecEDep[9][6];// Det:BSi, ESi, BMPGD, EMPGD, BTOF, ETOF, B0, FOffMT, FRoman / Hit: Phys, Bkg
     TH1D* m_hCalRecEDep[7][6];
     TH1D* m_hCalCluEDep[6][6];
@@ -169,10 +161,13 @@ private:
     Int_t m_numOfPhysTrig = 0;
     Int_t m_numOfFakeTrig = 0;
 
-
+    TH1I* m_hECalBackEndNumOfHitsInTower[2];
+    TH1D* m_hECalBackEndNumOfHitsTimesEInTower[2];
     TH1I* m_hECalBarrelNumOfHitsInTower[2];
     TH1D* m_hECalBarrelNumOfHitsTimesEInTower[2];
-    
+    TH1I* m_hECalFrontEndNumOfHitsInTower[2];
+    TH1D* m_hECalFrontEndNumOfHitsTimesEInTower[2];
+
 };
 
 #endif
