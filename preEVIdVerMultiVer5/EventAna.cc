@@ -204,10 +204,12 @@ EventAna::EventAna(const std::string& inputFile, const std::string& outputFile) 
 void EventAna::EventLoop() {
     OFileInit();
     auto nEvents = m_reader.getEntries("events");
-    const bool bTargetEV = false;
-    m_vTargetEvents = {21, 53, 55, 61, 76, 128, 135, 139, 142, 159, 169, 174, 198, 205, 210, 227, 231, 237, 241, 249, 269, 271, 273, 275, 276, 281, 284, 287, 297, 317, 320, 355, 359, 360, 380, 389, 434, 443, 447, 465, 479, 506, 521, 526, 541, 546, 548, 551, 564, 598, 605, 614, 623, 625, 636, 642, 665, 669, 670, 720, 728, 742, 743, 744, 746, 754, 759, 783, 795, 797, 813, 814, 816, 820, 821, 826, 856, 863, 876, 877, 879, 888, 897, 903, 919, 938, 959, 961, 963, 969, 988, 991, 993};
+    const bool bTargetEV = true;
+    m_vTargetEvents = {};
 
-    // 36, 119, 305, 359, 506, 585, 636, 666, 820,
+    // 3, 7, 10, 11, 15, 16, 19, 23
+
+    // 21, 53, 55, 61, 76, 128, 135, 139, 142, 159, 169, 174, 198, 205, 210, 227, 231, 237, 241, 249, 269, 271, 273, 275, 276, 281, 284, 287, 297, 317, 320, 355, 359, 360, 380, 389, 434, 443, 447, 465, 479, 506, 521, 526, 541, 546, 548, 551, 564, 598, 605, 614, 623, 625, 636, 642, 665, 669, 670, 720, 728, 742, 743, 744, 746, 754, 759, 783, 795, 797, 813, 814, 816, 820, 821, 826, 856, 863, 876, 877, 879, 888, 897, 903, 919, 938, 959, 961, 963, 969, 988, 991, 993
 
     nEvents = 1000;
     // nEvents = 10;
@@ -530,8 +532,16 @@ void EventAna::preEventIDVer5(const podio::Frame& frame, Double_t vtxTime){
         //     }
         // }
 
-        multiHits[3] = countTimedHits(recHitsB0Trk, trkScanStates[kTrkB0],
-                                      timeResolution_ACLGad, tsTimeS, tsTimeE);
+        Int_t numOfBOTrk = 0;
+        Int_t totEDepOfBOCal = 0;
+        for(size_t iB0Trk = 0; iB0Trk < recHitsB0Trk.getHitSize(); ++iB0Trk){
+            const Double_t hitT = recHitsB0Trk.getTime(iB0Trk);
+            if(hitT + timeResolution_ACLGad < tsTimeS || hitT - timeResolution_ACLGad > tsTimeE) continue;
+            numOfBOTrk++;
+        }
+        multiHits[3] = numOfBOTrk;
+        // multiHits[3] = countTimedHits(recHitsB0Trk, trkScanStates[kTrkB0],
+        //                               timeResolution_ACLGad, tsTimeS, tsTimeE);
 
         
         // multiHits[4] = countTimedHits(recHitsZDCECal, calScanStates[kCalZDC],
@@ -561,19 +571,20 @@ void EventAna::preEventIDVer5(const podio::Frame& frame, Double_t vtxTime){
         m_hTrigThreHits[4][bBkgTS]->Fill(multiHits[4]);
 
         Bool_t bTrigs[6] = {};
-        if(multiHits[1] > 2 && multiHits[2] > 2) bTrigs[0] = kTRUE;
-        if(multiHits[0] > 0 && multiHits[3] > 0) bTrigs[1] = kTRUE;
-        if(multiHits[0] > 0 && multiHits[2] > 0) bTrigs[2] = kTRUE;
-        if(multiHits[2] > 0 && multiHits[4] > 50) bTrigs[3] = kTRUE;
-        if(multiHits[0] > 0 && multiHits[1] > 0 && multiHits[3] > 4) bTrigs[4] = kTRUE;
-        if((multiHits[0] || multiHits[1] || multiHits[2]) > 0 && multiHits[4] > 50) bTrigs[5] = kTRUE;
+        if((multiHits[0] + multiHits[1] + multiHits[2]) > 0 && multiHits[0] > 4) bTrigs[0] = kTRUE;
+        if((multiHits[0] + multiHits[1] + multiHits[2]) > 0 && multiHits[1] > 50) bTrigs[1] = kTRUE;
+        // if(multiHits[1] > 2 && multiHits[2] > 2) bTrigs[0] = kTRUE;
+        // if(multiHits[0] > 0 && multiHits[3] > 0) bTrigs[1] = kTRUE;
+        // if(multiHits[0] > 0 && multiHits[2] > 0) bTrigs[2] = kTRUE;
+        // if(multiHits[2] > 0 && multiHits[4] > 50) bTrigs[3] = kTRUE;
 
-        if(bTrigs[0]) m_hCombTriggerEfficiency[bBkgTS]->Fill(2); // DIS high Q2
-        if(bTrigs[1]) m_hCombTriggerEfficiency[bBkgTS]->Fill(3); // DIS Low Q2 2
-        if(bTrigs[2]) m_hCombTriggerEfficiency[bBkgTS]->Fill(4); // SI-DIS
-        if(bTrigs[3]) m_hCombTriggerEfficiency[bBkgTS]->Fill(5); // J/Psi
-        if(bTrigs[4]) m_hCombTriggerEfficiency[bBkgTS]->Fill(4); // SI-DIS
-        if(bTrigs[5]) m_hCombTriggerEfficiency[bBkgTS]->Fill(6); // J/Psi
+
+        if(bTrigs[0]) m_hCombTriggerEfficiency[bBkgTS]->Fill(2); // CentralTrk+B0Trk
+        if(bTrigs[1]) m_hCombTriggerEfficiency[bBkgTS]->Fill(3); // CentralTrk+ZDC
+        // if(bTrigs[2]) m_hCombTriggerEfficiency[bBkgTS]->Fill(4); // SI-DIS
+        // if(bTrigs[3]) m_hCombTriggerEfficiency[bBkgTS]->Fill(5); // J/Psi
+        // if(bTrigs[4]) m_hCombTriggerEfficiency[bBkgTS]->Fill(6); // CentralTrk+B0Trk
+        // if(bTrigs[5]) m_hCombTriggerEfficiency[bBkgTS]->Fill(7); // CentralTrk+ZDC
 
         if(bTrigs[0] || bTrigs[1] || bTrigs[2] || bTrigs[3] || bTrigs[4] || bTrigs[5]) m_hCombTriggerEfficiency[bBkgTS]->Fill(1);
         else if(!bBkgTS) m_vTargetEvents.push_back(m_pubEvNum);
@@ -701,15 +712,15 @@ void EventAna::OFileInit() {
     for(size_t iPKind = 0; iPKind < 2; iPKind++){
         m_hCombTriggerEfficiency[iPKind] = new TH1I(TString::Format("m_hCombTriggerEfficiency_%s", m_biPhysName[iPKind].Data()),
                                                       TString::Format("m_hCombTriggerEfficiency_%s;trigger combination;count", m_biPhysName[iPKind].Data()),
-                                                      8, 0.5, 8.5);
+                                                      3, 0.5, 3.5);
         m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(1, "Total");
-        m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(2, "Barrel+FrontEnd");
-        m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(3, "BackEnd+FrontEnd");
-        m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(4, "BackEnd+B0Trk");
-        m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(5, "Barrel+ZDC");
-        m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(6, "Barrel+FrontEnd+ZDC");
-        m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(7, "BackEnd+FrontEnd+B0Trk");
-        m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(8, "Other");
+        m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(2, "CentralTrk+B0Trk");
+        m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(3, "CentralTrk+ZDC");
+        // m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(4, "BackEnd+B0Trk");
+        // m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(5, "Barrel+ZDC");
+        // m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(6, "CentralTrk+B0Trk");
+        // m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(7, "CentralTrk+ZDC");
+        // m_hCombTriggerEfficiency[iPKind]->GetXaxis()->SetBinLabel(8, "Other");
     }
 
 
