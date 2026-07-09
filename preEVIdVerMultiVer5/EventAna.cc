@@ -204,7 +204,7 @@ EventAna::EventAna(const std::string& inputFile, const std::string& outputFile) 
 void EventAna::EventLoop() {
     OFileInit();
     auto nEvents = m_reader.getEntries("events");
-    const bool bTargetEV = true;
+    const bool bTargetEV = false;
     m_vTargetEvents = {};
 
     // 3, 7, 10, 11, 15, 16, 19, 23
@@ -571,20 +571,20 @@ void EventAna::preEventIDVer5(const podio::Frame& frame, Double_t vtxTime){
         m_hTrigThreHits[4][bBkgTS]->Fill(multiHits[4]);
 
         Bool_t bTrigs[6] = {};
-        if((multiHits[0] + multiHits[1] + multiHits[2]) > 0 && multiHits[0] > 4) bTrigs[0] = kTRUE;
-        if((multiHits[0] + multiHits[1] + multiHits[2]) > 0 && multiHits[1] > 50) bTrigs[1] = kTRUE;
-        // if(multiHits[1] > 2 && multiHits[2] > 2) bTrigs[0] = kTRUE;
-        // if(multiHits[0] > 0 && multiHits[3] > 0) bTrigs[1] = kTRUE;
-        // if(multiHits[0] > 0 && multiHits[2] > 0) bTrigs[2] = kTRUE;
-        // if(multiHits[2] > 0 && multiHits[4] > 50) bTrigs[3] = kTRUE;
+        if((multiHits[0] + multiHits[1] + multiHits[2]) > 0 && multiHits[3] > 4) bTrigs[0] = kTRUE;
+        if((multiHits[0] + multiHits[1] + multiHits[2]) > 0 && multiHits[4] > 50) bTrigs[1] = kTRUE;
+        // if(multiHits[1] > 2 && multiHits[2] > 2) bTrigs[2] = kTRUE;
+        // if(multiHits[0] > 0 && multiHits[3] > 0) bTrigs[3] = kTRUE;
+        // if(multiHits[0] > 0 && multiHits[2] > 0) bTrigs[4] = kTRUE;
+        // if(multiHits[2] > 0 && multiHits[4] > 50) bTrigs[5] = kTRUE;
 
 
         if(bTrigs[0]) m_hCombTriggerEfficiency[bBkgTS]->Fill(2); // CentralTrk+B0Trk
         if(bTrigs[1]) m_hCombTriggerEfficiency[bBkgTS]->Fill(3); // CentralTrk+ZDC
-        // if(bTrigs[2]) m_hCombTriggerEfficiency[bBkgTS]->Fill(4); // SI-DIS
-        // if(bTrigs[3]) m_hCombTriggerEfficiency[bBkgTS]->Fill(5); // J/Psi
-        // if(bTrigs[4]) m_hCombTriggerEfficiency[bBkgTS]->Fill(6); // CentralTrk+B0Trk
-        // if(bTrigs[5]) m_hCombTriggerEfficiency[bBkgTS]->Fill(7); // CentralTrk+ZDC
+        if(bTrigs[2]) m_hCombTriggerEfficiency[bBkgTS]->Fill(4); // Barrel + Forward
+        if(bTrigs[3]) m_hCombTriggerEfficiency[bBkgTS]->Fill(5); // BackEndTrk+B0Trk
+        if(bTrigs[4]) m_hCombTriggerEfficiency[bBkgTS]->Fill(6); // CentralTrk+B0Trk
+        if(bTrigs[5]) m_hCombTriggerEfficiency[bBkgTS]->Fill(7); // CentralTrk+ZDC
 
         if(bTrigs[0] || bTrigs[1] || bTrigs[2] || bTrigs[3] || bTrigs[4] || bTrigs[5]) m_hCombTriggerEfficiency[bBkgTS]->Fill(1);
         else if(!bBkgTS) m_vTargetEvents.push_back(m_pubEvNum);
