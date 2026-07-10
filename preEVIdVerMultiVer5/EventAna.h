@@ -152,11 +152,11 @@ private:
 
     TH1D* m_hTrigDetNumOfHitsInTS[5][2]; //  Det:BMPGD+TOF, EMPGD+TOF, B0 / Hit: Phys+BKG, Bkg
 
-    std::array<TString, 5> m_PreTrigName = {"backEnd","barrel","forwardEnd","B0Trk","EcalZDC"};
-    TH1I* m_hTrigMultiHits[5][2]; //  Det:BMPGD+TOF, EMPGD+TOF, B0 / Hit: Phys+BKG, Bkg
-    TH1I* m_hTrigThreHits[5][2]; //  Det:BMPGD+TOF, EMPGD+TOF, B0 / Hit: Phys+BKG, Bkg
+    std::array<TString, 8> m_PreTrigName = {"forwardCal","forwardCal+Trk","barrelCal","backwardCal","backwardCal+Trk", "barrelCal+Trk","B0Trk","EcalZDC"};
+    TH1I* m_hTrigMultiHits[8][2]; //  Det:BMPGD+TOF, EMPGD+TOF, B0 / Hit: Phys+BKG, Bkg
+    TH1I* m_hTrigThreHits[8][2]; //  Det:BMPGD+TOF, EMPGD+TOF, B0 / Hit: Phys+BKG, Bkg
 
-    TH1I* m_hCombTriggerEfficiency[2]; //  Det:BMPGD+TOF, EMPGD+TOF, B0 / Hit: Phys+BKG, Bkg
+    TH1D* m_hCombTriggerEfficiency[2]; //  Det:BMPGD+TOF, EMPGD+TOF, B0 / Hit: Phys+BKG, Bkg
 
     Int_t m_numOfPhysTrig = 0;
     Int_t m_numOfFakeTrig = 0;
@@ -168,6 +168,7 @@ private:
     TH1I* m_hECalFrontEndNumOfHitsInTower[2];
     TH1D* m_hECalFrontEndNumOfHitsTimesEInTower[2];
 
+    Int_t testCount = 0;
 };
 
 #endif
